@@ -58,6 +58,11 @@ class OnboardingState {
   final double retirementMonthlyAmount;
   final List<LifestyleLineItem> lifestyleLineItems;
 
+  // Simulator Settings
+  final bool stepUpEnabled;
+  final double stepUpPercent;
+  final double equityAllocation;
+
   const OnboardingState({
     this.currentStep = 1,
     this.isLoading = false,
@@ -75,6 +80,9 @@ class OnboardingState {
     this.selectedTierName = 'comfortable',
     this.retirementMonthlyAmount = 120000,
     this.lifestyleLineItems = const [],
+    this.stepUpEnabled = false,
+    this.stepUpPercent = 0.0,
+    this.equityAllocation = 0.50,
   });
 
   OnboardingState copyWith({
@@ -94,6 +102,9 @@ class OnboardingState {
     String? selectedTierName,
     double? retirementMonthlyAmount,
     List<LifestyleLineItem>? lifestyleLineItems,
+    bool? stepUpEnabled,
+    double? stepUpPercent,
+    double? equityAllocation,
   }) {
     return OnboardingState(
       currentStep: currentStep ?? this.currentStep,
@@ -115,6 +126,9 @@ class OnboardingState {
       retirementMonthlyAmount:
           retirementMonthlyAmount ?? this.retirementMonthlyAmount,
       lifestyleLineItems: lifestyleLineItems ?? this.lifestyleLineItems,
+      stepUpEnabled: stepUpEnabled ?? this.stepUpEnabled,
+      stepUpPercent: stepUpPercent ?? this.stepUpPercent,
+      equityAllocation: equityAllocation ?? this.equityAllocation,
     );
   }
 

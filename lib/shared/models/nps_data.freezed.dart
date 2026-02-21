@@ -29,6 +29,8 @@ mixin _$NPSData {
       throw _privateConstructorUsedError; // 'active' | 'auto'
   double? get equityAllocation =>
       throw _privateConstructorUsedError; // % if active choice
+  bool get stepUpEnabled => throw _privateConstructorUsedError;
+  double get stepUpPercent => throw _privateConstructorUsedError;
   DateTime? get lastUpdated => throw _privateConstructorUsedError;
 
   /// Serializes this NPSData to a JSON map.
@@ -52,6 +54,8 @@ abstract class $NPSDataCopyWith<$Res> {
     double? monthlyEmployerContribution,
     String fundChoice,
     double? equityAllocation,
+    bool stepUpEnabled,
+    double stepUpPercent,
     DateTime? lastUpdated,
   });
 }
@@ -77,6 +81,8 @@ class _$NPSDataCopyWithImpl<$Res, $Val extends NPSData>
     Object? monthlyEmployerContribution = freezed,
     Object? fundChoice = null,
     Object? equityAllocation = freezed,
+    Object? stepUpEnabled = null,
+    Object? stepUpPercent = null,
     Object? lastUpdated = freezed,
   }) {
     return _then(
@@ -105,6 +111,14 @@ class _$NPSDataCopyWithImpl<$Res, $Val extends NPSData>
                 ? _value.equityAllocation
                 : equityAllocation // ignore: cast_nullable_to_non_nullable
                       as double?,
+            stepUpEnabled: null == stepUpEnabled
+                ? _value.stepUpEnabled
+                : stepUpEnabled // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            stepUpPercent: null == stepUpPercent
+                ? _value.stepUpPercent
+                : stepUpPercent // ignore: cast_nullable_to_non_nullable
+                      as double,
             lastUpdated: freezed == lastUpdated
                 ? _value.lastUpdated
                 : lastUpdated // ignore: cast_nullable_to_non_nullable
@@ -130,6 +144,8 @@ abstract class _$$NPSDataImplCopyWith<$Res> implements $NPSDataCopyWith<$Res> {
     double? monthlyEmployerContribution,
     String fundChoice,
     double? equityAllocation,
+    bool stepUpEnabled,
+    double stepUpPercent,
     DateTime? lastUpdated,
   });
 }
@@ -154,6 +170,8 @@ class __$$NPSDataImplCopyWithImpl<$Res>
     Object? monthlyEmployerContribution = freezed,
     Object? fundChoice = null,
     Object? equityAllocation = freezed,
+    Object? stepUpEnabled = null,
+    Object? stepUpPercent = null,
     Object? lastUpdated = freezed,
   }) {
     return _then(
@@ -182,6 +200,14 @@ class __$$NPSDataImplCopyWithImpl<$Res>
             ? _value.equityAllocation
             : equityAllocation // ignore: cast_nullable_to_non_nullable
                   as double?,
+        stepUpEnabled: null == stepUpEnabled
+            ? _value.stepUpEnabled
+            : stepUpEnabled // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        stepUpPercent: null == stepUpPercent
+            ? _value.stepUpPercent
+            : stepUpPercent // ignore: cast_nullable_to_non_nullable
+                  as double,
         lastUpdated: freezed == lastUpdated
             ? _value.lastUpdated
             : lastUpdated // ignore: cast_nullable_to_non_nullable
@@ -201,6 +227,8 @@ class _$NPSDataImpl implements _NPSData {
     this.monthlyEmployerContribution,
     required this.fundChoice,
     this.equityAllocation,
+    this.stepUpEnabled = false,
+    this.stepUpPercent = 0.0,
     this.lastUpdated,
   });
 
@@ -222,11 +250,17 @@ class _$NPSDataImpl implements _NPSData {
   final double? equityAllocation;
   // % if active choice
   @override
+  @JsonKey()
+  final bool stepUpEnabled;
+  @override
+  @JsonKey()
+  final double stepUpPercent;
+  @override
   final DateTime? lastUpdated;
 
   @override
   String toString() {
-    return 'NPSData(userId: $userId, currentCorpus: $currentCorpus, monthlyEmployeeContribution: $monthlyEmployeeContribution, monthlyEmployerContribution: $monthlyEmployerContribution, fundChoice: $fundChoice, equityAllocation: $equityAllocation, lastUpdated: $lastUpdated)';
+    return 'NPSData(userId: $userId, currentCorpus: $currentCorpus, monthlyEmployeeContribution: $monthlyEmployeeContribution, monthlyEmployerContribution: $monthlyEmployerContribution, fundChoice: $fundChoice, equityAllocation: $equityAllocation, stepUpEnabled: $stepUpEnabled, stepUpPercent: $stepUpPercent, lastUpdated: $lastUpdated)';
   }
 
   @override
@@ -253,6 +287,10 @@ class _$NPSDataImpl implements _NPSData {
                 other.fundChoice == fundChoice) &&
             (identical(other.equityAllocation, equityAllocation) ||
                 other.equityAllocation == equityAllocation) &&
+            (identical(other.stepUpEnabled, stepUpEnabled) ||
+                other.stepUpEnabled == stepUpEnabled) &&
+            (identical(other.stepUpPercent, stepUpPercent) ||
+                other.stepUpPercent == stepUpPercent) &&
             (identical(other.lastUpdated, lastUpdated) ||
                 other.lastUpdated == lastUpdated));
   }
@@ -267,6 +305,8 @@ class _$NPSDataImpl implements _NPSData {
     monthlyEmployerContribution,
     fundChoice,
     equityAllocation,
+    stepUpEnabled,
+    stepUpPercent,
     lastUpdated,
   );
 
@@ -292,6 +332,8 @@ abstract class _NPSData implements NPSData {
     final double? monthlyEmployerContribution,
     required final String fundChoice,
     final double? equityAllocation,
+    final bool stepUpEnabled,
+    final double stepUpPercent,
     final DateTime? lastUpdated,
   }) = _$NPSDataImpl;
 
@@ -309,6 +351,10 @@ abstract class _NPSData implements NPSData {
   String get fundChoice; // 'active' | 'auto'
   @override
   double? get equityAllocation; // % if active choice
+  @override
+  bool get stepUpEnabled;
+  @override
+  double get stepUpPercent;
   @override
   DateTime? get lastUpdated;
 

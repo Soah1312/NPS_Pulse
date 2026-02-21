@@ -54,11 +54,14 @@ class _PowerSliderSheetState extends ConsumerState<PowerSliderSheet> {
       _monthlyContribution = widget.initialContribution ?? defaultContrib;
       if (_monthlyContribution <= 0) _monthlyContribution = 5000; // fallback
 
-      _stepUpPercent = widget.initialStepUp ?? 0.0;
-      _stepUpEnabled = _stepUpPercent > 0;
-      if (!_stepUpEnabled) _stepUpPercent = 0.10; // default when turning on
+      _stepUpPercent = widget.initialStepUp ?? s.stepUpPercent;
+      _stepUpEnabled = _stepUpPercent > 0 || s.stepUpEnabled;
+      if (!_stepUpEnabled && _stepUpPercent <= 0) {
+        _stepUpPercent = 0.10; // default when turning on
+      }
 
-      _equityAllocation = widget.initialEquity ?? 0.50; // default 50%
+      _equityAllocation =
+          widget.initialEquity ?? s.equityAllocation; // default 50%
       _targetAge = widget.initialRetirementAge ?? s.targetRetirementAge;
 
       _calculateBaseMetrics(s, defaultContrib);
@@ -102,13 +105,18 @@ class _PowerSliderSheetState extends ConsumerState<PowerSliderSheet> {
     int years = _targetAge - age;
     if (years <= 0) years = 1;
 
-    // Equity influences return rate
-    // Base is ~8.5%. At 75% equity, return is 10.5%.
-    double simulatedReturn = 0.085 + (_equityAllocation / 0.75) * 0.02;
+    double simulatedReturn = RetirementCalculator.getReturnRate(
+      sector: s.sector ?? '',
+      age: age,
+    );
+    if (age < 45 && s.sector != 'central_govt' && _equityAllocation > 0) {
+      simulatedReturn = 0.085 + (_equityAllocation / 0.75) * 0.02;
+    }
 
     double proj = RetirementCalculator.calculateProjectedCorpus(
       currentCorpus: s.currentCorpus ?? 0.0,
-      monthlyContribution: _monthlyContribution,
+      monthlyContribution:
+          _monthlyContribution + (s.monthlyEmployerContribution ?? 0.0),
       yearsToRetirement: years,
       annualReturnRate: simulatedReturn,
       stepUpPercent: _stepUpEnabled ? _stepUpPercent : 0.0,
@@ -132,10 +140,18 @@ class _PowerSliderSheetState extends ConsumerState<PowerSliderSheet> {
     int years = _targetAge - age;
     if (years <= 0) years = 1;
 
-    double simulatedReturn = 0.085 + (_equityAllocation / 0.75) * 0.02;
+    double simulatedReturn = RetirementCalculator.getReturnRate(
+      sector: s.sector ?? '',
+      age: age,
+    );
+    if (age < 45 && s.sector != 'central_govt' && _equityAllocation > 0) {
+      simulatedReturn = 0.085 + (_equityAllocation / 0.75) * 0.02;
+    }
+
     double proj = RetirementCalculator.calculateProjectedCorpus(
       currentCorpus: s.currentCorpus ?? 0.0,
-      monthlyContribution: _monthlyContribution,
+      monthlyContribution:
+          _monthlyContribution + (s.monthlyEmployerContribution ?? 0.0),
       yearsToRetirement: years,
       annualReturnRate: simulatedReturn,
       stepUpPercent: _stepUpEnabled ? _stepUpPercent : 0.0,
@@ -307,7 +323,7 @@ class _PowerSliderSheetState extends ConsumerState<PowerSliderSheet> {
                         Text('Annual step-up', style: AppTypography.labelLarge),
                         Switch(
                           value: _stepUpEnabled,
-                          activeColor: AppColors.accentAmber,
+                          activeTrackColor: AppColors.accentAmber,
                           onChanged: (val) =>
                               setState(() => _stepUpEnabled = val),
                         ),
@@ -585,7 +601,12 @@ class _PowerSliderSheetState extends ConsumerState<PowerSliderSheet> {
                             ..updateMonthlyEmployeeContribution(
                               _monthlyContribution,
                             )
-                            ..updateTargetRetirementAge(_targetAge);
+                            ..updateTargetRetirementAge(_targetAge)
+                            ..updateSimulationSettings(
+                              stepUpEnabled: _stepUpEnabled,
+                              stepUpPercent: _stepUpPercent,
+                              equityAllocation: _equityAllocation,
+                            );
 
                           Navigator.pop(context);
                           ScaffoldMessenger.of(context).showSnackBar(

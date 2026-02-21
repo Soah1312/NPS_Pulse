@@ -71,10 +71,15 @@ DashboardState _computeDashboard(OnboardingState s) {
   final isComplete = age > 0 && currentCorpus > 0 && monthlyContrib > 0;
 
   // Step 1 — Annual return rate
-  final r = RetirementCalculator.getReturnRate(
+  double r = RetirementCalculator.getReturnRate(
     sector: s.sector ?? '',
     age: age,
   );
+
+  // If active equity allocation is provided and user is <45 (private sect)
+  if (age < 45 && s.sector != 'central_govt' && s.equityAllocation > 0) {
+    r = 0.085 + (s.equityAllocation / 0.75) * 0.02;
+  }
 
   // Step 2 — Project future corpus
   final projectedCorpus = RetirementCalculator.calculateProjectedCorpus(
@@ -82,6 +87,7 @@ DashboardState _computeDashboard(OnboardingState s) {
     monthlyContribution: monthlyContrib,
     yearsToRetirement: years,
     annualReturnRate: r,
+    stepUpPercent: s.stepUpEnabled ? s.stepUpPercent : 0.0,
   );
 
   // Step 3 — Required corpus at retirement

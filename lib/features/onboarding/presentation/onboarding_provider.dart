@@ -74,6 +74,9 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
 
   void updateMonthlyEmployeeContribution(double? contribution) {
     state = state.copyWith(monthlyEmployeeContribution: contribution);
+    if (contribution != null) {
+      _updateNpsDataInBg({'monthly_employee_contribution': contribution});
+    }
   }
 
   void updateMonthlyEmployerContribution(double? contribution) {
@@ -92,6 +95,7 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
 
   void updateTargetRetirementAge(int age) {
     state = state.copyWith(targetRetirementAge: age);
+    _updateProfileInBg({'target_retirement_age': age});
   }
 
   // ── Step 6 — Lifestyle Tier ─────────────────────────────
@@ -115,6 +119,66 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
     );
   }
 
+  // ── Simulator Settings ──────────────────────────────────
+
+  void updateSimulationSettings({
+    bool? stepUpEnabled,
+    double? stepUpPercent,
+    double? equityAllocation,
+  }) {
+    state = state.copyWith(
+      stepUpEnabled: stepUpEnabled,
+      stepUpPercent: stepUpPercent,
+      equityAllocation: equityAllocation,
+    );
+
+    // Save to Supabase in the background if user is logged in
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId != null) {
+      final updates = <String, dynamic>{};
+      if (stepUpEnabled != null) updates['step_up_enabled'] = stepUpEnabled;
+      if (stepUpPercent != null) updates['step_up_percent'] = stepUpPercent;
+      if (equityAllocation != null) {
+        updates['equity_allocation'] = equityAllocation;
+      }
+
+      if (updates.isNotEmpty) {
+        _updateNpsDataInBg(updates);
+      }
+    }
+  }
+
+  // ── Database Sync Helpers ───────────────────────────────
+
+  Future<void> _updateProfileInBg(Map<String, dynamic> updates) async {
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) return;
+      await Supabase.instance.client
+          .from('profiles')
+          .update(updates)
+          .eq('id', userId);
+      debugPrint('Sync success profile: $updates');
+    } catch (e) {
+      debugPrint('Sync error profile: $e');
+    }
+  }
+
+  Future<void> _updateNpsDataInBg(Map<String, dynamic> updates) async {
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) return;
+      updates['last_updated'] = DateTime.now().toIso8601String();
+      await Supabase.instance.client
+          .from('nps_data')
+          .update(updates)
+          .eq('user_id', userId);
+      debugPrint('Sync success nps_data: $updates');
+    } catch (e) {
+      debugPrint('Sync error nps_data: $e');
+    }
+  }
+
   // ── Data Loading ────────────────────────────────────────
 
   void populateFromProfile({
@@ -125,6 +189,14 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
     final names = profile.name.split(' ');
     final firstName = names.isNotEmpty ? names[0] : '';
     final lastName = names.length > 1 ? names.sublist(1).join(' ') : '';
+
+    double loadedStepUp =
+        (npsData?['step_up_percent'] as num?)?.toDouble() ?? 0.0;
+    if (loadedStepUp > 1.0) loadedStepUp /= 100.0;
+
+    double loadedEquity =
+        (npsData?['equity_allocation'] as num?)?.toDouble() ?? 0.50;
+    if (loadedEquity > 1.0) loadedEquity /= 100.0;
 
     state = state.copyWith(
       firstName: firstName,
@@ -140,6 +212,9 @@ class OnboardingNotifier extends StateNotifier<OnboardingState> {
       monthlyEmployerContribution:
           (npsData?['monthly_employer_contribution'] as num?)?.toDouble() ??
           0.0,
+      stepUpEnabled: npsData?['step_up_enabled'] as bool? ?? false,
+      stepUpPercent: loadedStepUp,
+      equityAllocation: loadedEquity,
       lifestyleLineItems: goals.map((g) {
         return LifestyleLineItem(
           emoji: '🎯', // Default emoji for loaded goals

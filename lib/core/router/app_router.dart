@@ -8,6 +8,7 @@ import '../../features/dashboard/presentation/dashboard_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/auth_provider.dart';
 import '../../features/tax_shield/presentation/tax_shield_screen.dart';
+import '../../features/dream_planner/presentation/dream_planner_screen.dart';
 
 import 'go_router_refresh_stream.dart';
 
@@ -159,8 +160,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/dashboard/dream',
             name: 'dashboard-dream',
-            builder: (context, state) =>
-                const _PlaceholderScreen(title: 'Dream Planner'),
+            builder: (context, state) => const DreamPlannerScreen(),
           ),
           GoRoute(
             path: '/dashboard/tax-shield',

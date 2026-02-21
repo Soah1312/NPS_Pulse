@@ -12,6 +12,8 @@ class NPSData with _$NPSData {
     double? monthlyEmployerContribution,
     required String fundChoice, // 'active' | 'auto'
     double? equityAllocation, // % if active choice
+    @Default(false) bool stepUpEnabled,
+    @Default(0.0) double stepUpPercent,
     DateTime? lastUpdated,
   }) = _NPSData;
 
