@@ -7,6 +7,7 @@ import '../../features/onboarding/presentation/onboarding_screen.dart';
 import '../../features/dashboard/presentation/dashboard_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/auth_provider.dart';
+import '../../features/tax_shield/presentation/tax_shield_screen.dart';
 
 import 'go_router_refresh_stream.dart';
 
@@ -101,13 +102,13 @@ class DashboardShell extends StatelessWidget {
 // ──────────────────────────────────────────────────────────
 
 final routerProvider = Provider<GoRouter>((ref) {
-  final authNotifier = ref.watch(authProvider.notifier);
-  final authState = ref.watch(authProvider);
+  final authNotifier = ref.read(authProvider.notifier);
 
   return GoRouter(
     initialLocation: '/login',
     refreshListenable: GoRouterRefreshStream(authNotifier.stream),
     redirect: (context, state) {
+      final authState = ref.read(authProvider);
       final isAuthenticated = authState.value != null;
       final isLoggingIn = state.uri.toString() == '/login';
       final isOnboarding = state.uri.toString() == '/onboarding';
@@ -164,8 +165,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/dashboard/tax-shield',
             name: 'dashboard-tax-shield',
-            builder: (context, state) =>
-                const _PlaceholderScreen(title: 'Tax Shield'),
+            builder: (context, state) => const TaxShieldScreen(),
           ),
           GoRoute(
             path: '/dashboard/insights',

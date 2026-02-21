@@ -71,6 +71,20 @@ class AuthNotifier extends StateNotifier<AsyncValue<UserProfile?>> {
     }
   }
 
+  Future<void> reloadProfile() async {
+    final currentUser = state.value;
+    if (currentUser != null) {
+      final response = await _client
+          .from('profiles')
+          .select()
+          .eq('id', currentUser.id)
+          .maybeSingle();
+      if (response != null) {
+        state = AsyncValue.data(UserProfile.fromJson(response));
+      }
+    }
+  }
+
   Future<void> logout() async {
     await _client.auth.signOut();
     state = const AsyncValue.data(null);

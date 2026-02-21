@@ -11,7 +11,8 @@ import 'quick_prompt_chips.dart';
 // ─────────────────────────────────────────────────────────────
 
 class AIAssistantSheet extends ConsumerStatefulWidget {
-  const AIAssistantSheet({super.key});
+  final String? initialContext;
+  const AIAssistantSheet({super.key, this.initialContext});
 
   @override
   ConsumerState<AIAssistantSheet> createState() => _AIAssistantSheetState();
