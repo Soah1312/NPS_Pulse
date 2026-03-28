@@ -1,194 +1,720 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Loader2, Zap } from 'lucide-react';
+import { 
+  Home, Shield, Moon, Bot, Settings, TrendingUp, Target, Zap, 
+  Clock, PiggyBank, Wallet, LogOut, Menu, X, Bell, ArrowRight,
+  ChevronUp, Sparkles, CheckCircle2, Info, BarChart2
+} from 'lucide-react';
 import { auth, db } from '../lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
-import { signOut } from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { 
+  calculateRetirement, 
+  getMilestoneAge, 
+  computeScenarioWithStepUp, 
+  getMaxEquityPct, 
+  SCHEME_E_RETURN, 
+  SCHEME_C_RETURN, 
+  SCHEME_G_RETURN, 
+  SWR, 
+  ANNUITY_PCT, 
+  ANNUITY_RATE, 
+  INFLATION_RATE,
+  LIFESTYLE_MULTIPLIERS
+} from '../utils/math';
 
 const COLORS = {
+  bg: '#FFFDF5',
+  fg: '#1E293B',
+  violet: '#8B5CF6',
+  pink: '#F472B6',
+  amber: '#FBBF24',
   emerald: '#34D399',
-  violet: '#8B5CF6'
+  slate: '#1E293B',
+  red: '#EF4444',
+  orange: '#F97316',
+  blue: '#3B82F6'
 };
 
-const MemphisDotGrid = () => (
-  <div 
-    className="absolute inset-0 z-0 pointer-events-none"
-    style={{
-      backgroundImage: 'radial-gradient(#1E293B 1px, transparent 1px)',
-      backgroundSize: '28px 28px',
-      opacity: 0.06
-    }}
-  />
-);
+// --- Utilities ---
+const formatIndian = (num) => {
+  if (num === undefined || num === null) return '₹0';
+  const val = Math.abs(num);
+  if (val >= 10000000) return `₹${(num / 10000000).toFixed(1)} Cr`;
+  if (val >= 100000) return `₹${(num / 100000).toFixed(1)} L`;
+  if (val >= 1000) return `₹${(num / 1000).toFixed(0)}K`;
+  return `₹${Math.round(num)}`;
+};
 
-const FinalScoreArc = ({ score = 0 }) => {
+const getScoreInfo = (score) => {
+  if (score <= 30) return { label: 'Critical', color: COLORS.red };
+  if (score <= 50) return { label: 'At Risk', color: COLORS.orange };
+  if (score <= 70) return { label: 'On Track', color: COLORS.blue };
+  if (score <= 85) return { label: 'Good', color: COLORS.violet };
+  return { label: 'Excellent', color: COLORS.emerald };
+};
+
+// --- UI Components ---
+const ScoreArc = ({ score, assumptionsOpen, setAssumptionsOpen }) => {
+  const { label, color } = getScoreInfo(score);
   const [offset, setOffset] = useState(283);
+  
   useEffect(() => {
     const timeout = setTimeout(() => { setOffset(283 - (283 * (score / 100))); }, 300);
     return () => clearTimeout(timeout);
   }, [score]);
 
   return (
-    <div className="relative w-full aspect-square max-w-[320px] mx-auto flex items-center justify-center">
-      <div className="absolute inset-0 bg-[#34D399] rounded-full mix-blend-multiply opacity-50 -translate-x-4 translate-y-4" />
-      <div className="relative z-10 w-full h-full bg-white border-4 border-[#1E293B] rounded-full p-8 flex flex-col items-center justify-center" style={{ boxShadow: '4px 4px 0px 0px #1E293B' }}>
+    <div className="bg-white border-2 border-[#1E293B] rounded-[24px] p-8 pop-shadow flex flex-col items-center justify-center relative overflow-hidden group">
+      <button 
+        onClick={() => setAssumptionsOpen(!assumptionsOpen)}
+        className="absolute top-4 right-4 text-[#1E293B]/40 hover:text-[#8B5CF6] transition-colors p-1"
+      >
+        <Info className="w-5 h-5" />
+      </button>
+      
+      <div className="relative w-full max-w-[240px] aspect-square flex items-center justify-center">
         <svg viewBox="0 0 100 100" className="w-full h-full absolute inset-0 -rotate-90 p-4 pb-0 overflow-visible">
-           <circle cx="50" cy="50" r="45" fill="none" stroke="#F1F5F9" strokeWidth="8" strokeDasharray="283" strokeLinecap="round" />
+           <circle cx="50" cy="50" r="45" fill="none" stroke="#F1F5F9" strokeWidth="10" strokeDasharray="283" strokeLinecap="round" />
            <circle 
-            cx="50" cy="50" r="45" fill="none" stroke={COLORS.emerald} strokeWidth="8" 
+            cx="50" cy="50" r="45" fill="none" stroke={color} strokeWidth="10" 
             strokeDasharray="283" strokeDashoffset={offset} strokeLinecap="round"
-            style={{ transition: 'stroke-dashoffset 1.5s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+            className="cubic"
+            style={{ transition: 'stroke-dashoffset 1.5s cubic-bezier(0.34, 1.56, 0.64, 1), stroke 0.5s ease' }}
           />
         </svg>
-        <div className="text-center relative z-20 mt-4">
-          <div className="font-heading font-extrabold text-[#1E293B] text-7xl leading-none" style={{ fontFamily: '"Outfit", sans-serif' }}>{score}</div>
-          <div className="font-bold text-[#34D399] uppercase tracking-widest text-sm mt-2">On Track</div>
+        <div className="text-center relative z-20">
+          <div className="font-heading font-extrabold text-[#1E293B] text-6xl md:text-7xl leading-none tabular-nums">{score}</div>
+          <div className="font-bold uppercase tracking-[0.2em] text-sm mt-2" style={{ color }}>{label}</div>
         </div>
       </div>
     </div>
   );
 };
 
+const StatCard = ({ label, value, subtext, icon: Icon, accent, fullWidth }) => (
+  <div className={`bg-white border-2 border-[#1E293B] rounded-[16px] p-6 pop-shadow hover:-translate-y-1 transition-all cubic flex flex-col justify-between group ${fullWidth ? 'col-span-full' : ''}`}>
+    <div className="flex justify-between items-start mb-4">
+       <div>
+         <div className="text-[10px] md:text-xs font-bold uppercase tracking-[2px] text-[#1E293B]/40 mb-1">{label}</div>
+         <div className="font-heading font-extrabold text-2xl md:text-3xl text-[#1E293B]">{value}</div>
+       </div>
+       <div className={`w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center border-2 border-[#1E293B] shadow-[2px_2px_0_0_#1E293B] group-hover:shadow-[3px_3px_0_0_#1E293B] transition-all`} style={{ backgroundColor: `${accent}22` }}>
+          <Icon className="w-5 h-5 md:w-6 md:h-6" strokeWidth={2.5} style={{ color: accent }} />
+       </div>
+    </div>
+    <div className="text-xs md:text-sm font-bold text-[#1E293B]/60 uppercase tracking-widest">{subtext}</div>
+  </div>
+);
+
+const QuickStat = ({ label, value, subtext, icon: Icon, color }) => (
+  <div className="bg-white border-2 border-[#1E293B] rounded-[12px] p-4 pop-shadow flex items-start gap-4 group hover:-translate-y-1 transition-all cubic">
+    <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 border-[#1E293B] shrink-0 font-bold`} style={{ backgroundColor: `${color}22` }}>
+       <Icon className="w-5 h-5" strokeWidth={2.5} style={{ color }} />
+    </div>
+    <div>
+      <div className="text-[9px] font-bold uppercase tracking-widest text-[#1E293B]/40 mb-1">{label}</div>
+      <div className="font-heading font-bold text-lg text-[#1E293B]">{value}</div>
+      <div className="text-[9px] font-bold text-[#1E293B]/60 uppercase tracking-widest mt-1">{subtext}</div>
+    </div>
+  </div>
+);
+
+const ScenarioCard = ({ title, impact, desc, onClick }) => (
+  <button 
+    onClick={onClick}
+    className="bg-white border-2 border-[#1E293B] rounded-[16px] p-5 text-left pop-shadow hover:-translate-y-1 hover:rotate-[-1deg] transition-all cubic cursor-pointer group"
+  >
+    <div className="flex justify-between items-center mb-3">
+       <div className="font-bold text-sm md:text-base leading-tight text-[#1E293B] group-hover:text-[#8B5CF6] transition-colors">{title}</div>
+       <div className={`px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border-2 border-[#1E293B] shrink-0 ${impact > 0 ? 'bg-[#D1FAE5] text-[#065F46] shadow-[2px_2px_0_0_#34D399]' : impact < 0 ? 'bg-[#FEE2E2] text-[#991B1B] shadow-[2px_2px_0_0_#EF4444]' : 'bg-slate-100 text-slate-500 shadow-[2px_2px_0_0_#CBD5E1]'}`}>
+         {impact > 0 ? `+${impact}` : impact} PTS
+       </div>
+    </div>
+    <div className="text-[10px] font-bold text-[#1E293B]/50 uppercase tracking-wide">{desc}</div>
+  </button>
+);
+
+const MilestoneItem = ({ milestone, age, achieved, color }) => (
+  <div className="flex-shrink-0 flex flex-col items-center">
+    <div className={`px-6 py-3 rounded-full border-2 border-[#1E293B] font-black uppercase tracking-widest text-sm flex items-center gap-2 group transition-all cubic`} style={{ backgroundColor: achieved ? '#34D399' : color, color: achieved ? '#1E293B' : 'white', boxShadow: '3px 3px 0 0 #1E293B' }}>
+       {formatIndian(milestone)}
+       {achieved && <CheckCircle2 className="w-4 h-4" />}
+    </div>
+    <div className="mt-2 font-bold text-xs uppercase tracking-widest text-[#1E293B]/50">
+      {achieved ? '✓ Achieved' : `at age ${age}`}
+    </div>
+  </div>
+);
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [simulatorOpen, setSimulatorOpen] = useState(false);
+  const [assumptionsOpen, setAssumptionsOpen] = useState(false);
+  const [simValues, setSimValues] = useState({
+    npsContribution: 0,
+    retireAge: 60,
+    stepUp: 0,
+    npsEquity: 50
+  });
 
+  // State checks and Auth logic
   useEffect(() => {
     document.title = "NPS Pulse | Dashboard";
-    
-    // Check auth and fetch data
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        try {
-          const docRef = doc(db, 'users', user.uid);
-          const docSnap = await getDoc(docRef);
-          
-          if (docSnap.exists()) {
-            setUserData(docSnap.data());
-          } else {
-            // User authenticated but no onboarding data
-            navigate('/onboarding');
-          }
-        } catch (err) {
-          console.error("Error fetching user data:", err);
-        } finally {
-          setLoading(false);
+        const snap = await getDoc(doc(db, 'users', user.uid));
+        if (snap.exists()) {
+          const data = snap.data();
+          setUserData(data);
+          setSimValues({
+            npsContribution: data.npsContribution || 5000,
+            retireAge: data.retireAge || 60,
+            stepUp: data.stepUp || 0,
+            npsEquity: data.npsEquity || 50
+          });
+        } else {
+          navigate('/onboarding');
         }
       } else {
-        // Not logged in
         navigate('/');
       }
+      setLoading(false);
     });
-
-    return () => unsubscribe();
+    return () => unsub();
   }, [navigate]);
+
+  // Derived metrics from user data using math utility
+  const baseResults = useMemo(() => userData ? calculateRetirement(userData) : null, [userData]);
+  
+  // Dynamic scenarios
+  const scenarios = useMemo(() => {
+    if (!userData || !baseResults) return [];
+    
+    const computeDelta = (overrides) => {
+       const results = calculateRetirement({ ...userData, ...overrides });
+       return results.score - baseResults.score;
+    };
+
+    const nextLifestyle = userData.lifestyle === 'premium' ? 'comfortable' : userData.lifestyle === 'essential' ? 'comfortable' : 'essential';
+
+    return [
+      {
+        title: `Contribute ₹2,000 more/m`,
+        desc: "Increase short-term delta",
+        impact: computeDelta({ npsContribution: (userData.npsContribution || 0) + 2000 })
+      },
+      {
+        title: "Enable 10% annual step-up",
+        desc: "Grow with your salary hikes",
+        impact: computeScenarioWithStepUp(userData) - baseResults.score
+      },
+      {
+        title: "Retire 2 years later",
+        desc: "Power of compounding time",
+        impact: computeDelta({ retireAge: (userData.retireAge || 60) + 2 })
+      },
+      {
+        title: `Switch to ${nextLifestyle[0].toUpperCase() + nextLifestyle.slice(1)}`,
+        desc: "Adjust standard of living",
+        impact: computeDelta({ lifestyle: nextLifestyle })
+      },
+      {
+        title: "Add ₹1L lump sum today",
+        desc: "Immediate corpus injection",
+        impact: computeDelta({ npsCorpus: (userData.npsCorpus || 0) + 100000 })
+      },
+      {
+        title: "Increase Equity to Max",
+        desc: `PFRDA cap: ${getMaxEquityPct(userData.age)}%`,
+        impact: computeDelta({ npsEquity: getMaxEquityPct(userData.age) })
+      }
+    ];
+  }, [userData, baseResults]);
+
+  // Simulated results linked to bottom panel
+  const simResults = useMemo(() => {
+    if (!userData) return null;
+    return calculateRetirement({
+      ...userData,
+      ...simValues
+    });
+  }, [userData, simValues]);
+
+  // Dynamic Milestones
+  const dynamicMilestones = useMemo(() => {
+    if (!userData) return [];
+    const targets = [1000000, 2500000, 5000000, 10000000, 50000000, 100000000];
+    return targets.map(target => ({
+       target,
+       ...getMilestoneAge(target, userData)
+    }));
+  }, [userData]);
 
   const handleLogout = async () => {
     await signOut(auth);
     navigate('/');
   };
 
-  const formatCurrency = (val) => {
-    if (val >= 10000000) return `₹${(val / 10000000).toFixed(1)} Cr`;
-    if (val >= 100000) return `₹${(val / 100000).toFixed(1)} L`;
-    return `₹${Math.round(val || 0).toLocaleString('en-IN')}`;
-  };
+  const navItems = [
+    { label: 'Dashboard', icon: Home, path: '/dashboard', active: true },
+    { label: 'Tax Shield', icon: Shield, path: '/tax-shield' },
+    { label: 'Dream Planner', icon: Moon, path: '/dream-planner' },
+    { label: 'AI Co-Pilot', icon: Bot, path: '/ai-copilot' },
+    { label: 'Methodology', icon: BarChart2, path: '/methodology' },
+    { label: 'Settings', icon: Settings, path: '/settings' },
+  ];
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#FFFDF5]">
-        <Loader2 className="w-12 h-12 animate-spin text-[#8B5CF6]" />
-      </div>
-    );
+     return (
+       <div className="min-h-screen flex items-center justify-center bg-[#FFFDF5]">
+         <div className="animate-pulse flex flex-col items-center">
+            <div className="w-16 h-16 bg-[#8B5CF6]/20 rounded-full mb-4" />
+            <div className="h-4 w-32 bg-slate-200 rounded" />
+         </div>
+       </div>
+     );
   }
 
   return (
-    <div className="min-h-screen relative flex flex-col items-center px-4 py-12 overflow-hidden bg-[#FFFDF5] text-[#1E293B]" style={{ fontFamily: '"Plus Jakarta Sans", sans-serif' }}>
-      <MemphisDotGrid />
-      
-      {/* Top Bar */}
-      <div className="w-full max-w-6xl flex justify-between items-center z-10 mb-12">
-        <div className="font-black text-2xl flex items-center gap-2" style={{ fontFamily: '"Outfit", sans-serif' }}>
-          <div className="w-8 h-8 rounded-full bg-[#8B5CF6] border-2 border-[#1E293B] flex items-center justify-center">
-            <div className="w-3 h-3 bg-white rounded-full" />
-          </div>
-          NPS Pulse
-        </div>
-        
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-3 bg-white border-2 border-[#1E293B] rounded-full py-1.5 px-3 md:pr-4" style={{ boxShadow: '2px 2px 0px 0px #1E293B' }}>
-            {auth.currentUser?.photoURL ? (
-              <img src={auth.currentUser.photoURL} alt="Profile" className="w-8 h-8 rounded-full border-2 border-[#1E293B]" />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-[#34D399] border-2 border-[#1E293B] flex items-center justify-center font-bold text-white">
-                {(auth.currentUser?.displayName || auth.currentUser?.email || 'U')[0].toUpperCase()}
-              </div>
-            )}
-            <span className="font-bold hidden md:block text-sm">
-              {auth.currentUser?.displayName || auth.currentUser?.email?.split('@')[0]}
-            </span>
-          </div>
-          <button 
-            onClick={handleLogout}
-            className="w-12 h-12 bg-white border-2 border-[#1E293B] rounded-full flex items-center justify-center hover:bg-[#F472B6] hover:text-white transition-colors cursor-pointer"
-            style={{ boxShadow: '2px 2px 0px 0px #1E293B' }}
-          >
-            <LogOut className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
+    <div className="min-h-screen bg-[#FFFDF5] text-[#1E293B] relative" style={{ fontFamily: '"Plus Jakarta Sans", sans-serif' }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@700;800&family=Plus+Jakarta+Sans:wght@400;500;700;800&display=swap');
+        h1, h2, h3, .font-heading { font-family: 'Outfit', sans-serif; }
+        .cubic { transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .pop-shadow { box-shadow: 4px 4px 0px 0px #1E293B; }
+        .candy-btn {
+          border-radius: 9999px;
+          border: 2px solid #1E293B;
+          box-shadow: 4px 4px 0px 0px #1E293B;
+          transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .candy-btn:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0px 0px #1E293B; }
+        .candy-btn:active { transform: translate(1px, 1px); box-shadow: 2px 2px 0px 0px #1E293B; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .sidebar-item-active { background: #8B5CF6; color: white; border-radius: 9999px; box-shadow: 2px 2px 0px 0px rgba(0,0,0,0.3); }
 
-      <div className="z-10 w-full max-w-4xl flex flex-col lg:flex-row gap-12 items-center justify-center">
-        <div className="w-full lg:w-1/2 flex justify-center">
-           <FinalScoreArc score={userData?.score || 0} />
-        </div>
+        @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+        .animate-float { animation: float 4s ease-in-out infinite; }
+        .animate-slide-up { animation: slideUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+      `}</style>
 
-        <div className="w-full lg:w-1/2 flex flex-col gap-6">
-           <div className="bg-white border-2 border-[#1E293B] rounded-3xl p-6 md:p-8" style={{ boxShadow: '4px 4px 0px 0px #1E293B' }}>
-             <div className="font-bold uppercase tracking-widest text-[#1E293B]/60 text-xs md:text-sm mb-4">Your Base Plan Outlook</div>
-             
-             <div className="grid grid-cols-2 gap-4 mb-6">
-               <div>
-                 <div className="text-xs md:text-sm font-bold opacity-60 uppercase mb-1">Projected Value</div>
-                 <div className="font-bold text-2xl md:text-3xl" style={{ fontFamily: '"Outfit", sans-serif' }}>
-                   {formatCurrency(userData?.projectedValue)}
+      {/* --- Sidebar (Desktop) --- */}
+      <aside className="fixed left-0 top-0 h-full w-60 bg-[#1E293B] z-40 hidden lg:flex flex-col p-6 overflow-hidden">
+         <div className="flex items-center gap-3 mb-12">
+            <div className="w-10 h-10 bg-[#8B5CF6] rounded-full border-2 border-white flex items-center justify-center font-heading font-extrabold text-white text-xl">N</div>
+            <span className="font-heading font-extrabold text-white text-xl uppercase tracking-widest">NPS Pulse</span>
+         </div>
+
+         <nav className="flex-1 space-y-4">
+            {navItems.map(item => (
+              <button 
+                key={item.label}
+                onClick={() => navigate(item.path)}
+                className={`w-full flex items-center gap-4 py-3 px-4 font-bold transition-all ${item.active ? 'sidebar-item-active' : 'text-white/70 hover:bg-white/10 rounded-full'}`}
+              >
+                <item.icon className="w-5 h-5" strokeWidth={2.5} />
+                <span>{item.label}</span>
+              </button>
+            ))}
+         </nav>
+
+         <div className="pt-8 border-t border-white/10 mt-auto">
+            <div className="flex items-center gap-3 p-2 bg-white/5 rounded-2xl">
+               {auth.currentUser?.photoURL ? (
+                 <img src={auth.currentUser.photoURL} alt="User" className="w-10 h-10 rounded-full border-2 border-[#8B5CF6]" />
+               ) : (
+                 <div className="w-10 h-10 rounded-full bg-[#8B5CF6] border-2 border-white flex items-center justify-center font-bold text-white uppercase text-lg">
+                   {userData?.firstName?.[0] || 'U'}
                  </div>
+               )}
+               <div className="flex flex-col">
+                  <span className="text-white font-bold text-sm tracking-wide">{userData?.firstName || 'User'}</span>
+                  <button className="text-[10px] text-white/50 uppercase tracking-widest font-black hover:text-[#F472B6]">Edit Profile</button>
                </div>
-               <div>
-                 <div className="text-xs md:text-sm font-bold opacity-60 uppercase mb-1">Required Corpus</div>
-                 <div className="font-bold text-2xl md:text-3xl" style={{ fontFamily: '"Outfit", sans-serif' }}>
-                   {formatCurrency(userData?.requiredCorpus)}
-                 </div>
-               </div>
-             </div>
-             
-             <div className="h-px w-full bg-[#1E293B]/10 mb-6" />
-             
-             <div className="bg-[#FFFDF5] border-2 border-[#FBBF24] rounded-2xl p-5 shadow-[4px_4px_0_0_#FBBF24]">
-               <div className="font-bold uppercase tracking-widest text-[#FBBF24] text-xs md:text-sm mb-2 flex items-center gap-2">
-                 <Zap className="w-4 h-4" /> Current Gap Insight
-               </div>
-               <div className="font-bold text-base md:text-lg leading-snug">
-                 {userData?.monthlyGap > 0 ? (
-                   <>Increase your monthly contribution by <span className="text-[#8B5CF6] font-black">{formatCurrency(userData.monthlyGap)}</span> to cover the gap entirely.</>
-                 ) : (
-                   <><span className="text-[#34D399] font-black">You are fully on track!</span> Your current plan exceeds your retirement requirements.</>
-                 )}
-               </div>
-             </div>
-           </div>
-           
-           {/* Temporary button until layered dashboard design is fully implemented */}
+               <button onClick={handleLogout} className="ml-auto p-2 text-white/30 hover:text-white transition-colors">
+                  <LogOut className="w-4 h-4" />
+               </button>
+            </div>
+         </div>
+      </aside>
+
+      {/* --- Mobile Nav Bottom (Mobile Only) --- */}
+      <nav className="fixed bottom-0 left-0 w-full bg-white h-16 border-t border-slate-200 flex lg:hidden items-center justify-around z-50 px-2 pb-safe">
+         {navItems.map(item => (
            <button 
-             onClick={() => navigate('/onboarding')}
-             className="w-full py-4 bg-white border-2 border-[#1E293B] rounded-xl font-bold uppercase tracking-widest hover:bg-[#F1F5F9] cursor-pointer"
-             style={{ boxShadow: '4px 4px 0px 0px #1E293B' }}
+            key={item.label}
+            onClick={() => navigate(item.path)}
+            className={`flex flex-col items-center gap-1 ${item.active ? 'text-[#8B5CF6]' : 'text-slate-400'}`}
            >
-             Retake Questionnaire
+             <item.icon className="w-5 h-5" strokeWidth={2.5} />
+             {item.active && <span className="text-[9px] font-black uppercase tracking-widest leading-none">{item.label}</span>}
            </button>
+         ))}
+      </nav>
+
+      {/* --- Main Content area --- */}
+      <main className="lg:ml-60 min-h-screen flex flex-col relative pb-24 lg:pb-0">
+         <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.05]" style={{ backgroundImage: 'radial-gradient(#1E293B 1px, transparent 1px)', backgroundSize: '28px 28px' }} />
+
+         {/* Top Bar */}
+         <header className="h-16 border-b border-slate-200 bg-white/80 backdrop-blur-md sticky top-0 z-30 flex items-center justify-between px-6 lg:px-8">
+            <h1 className="font-heading font-extrabold text-xl md:text-2xl text-[#1E293B] uppercase tracking-widest">Dashboard</h1>
+            <div className="flex items-center gap-4">
+               <div className={`hidden md:flex items-center gap-2 px-4 py-1.5 rounded-full border-2 border-[#1E293B] font-black uppercase tracking-widest text-[10px]`} style={{ backgroundColor: `${getScoreInfo(baseResults?.score).color}22` }}>
+                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getScoreInfo(baseResults?.score).color }} />
+                  <span>{baseResults?.score} {getScoreInfo(baseResults?.score).label}</span>
+               </div>
+               <button className="p-2 text-[#1E293B]/60 hover:text-[#1E293B] relative">
+                  <Bell className="w-5 h-5" />
+                  <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#F472B6] rounded-full border-2 border-white" />
+               </button>
+            </div>
+         </header>
+
+         <div className="flex-1 p-6 lg:p-8 space-y-10 z-10 max-w-6xl mx-auto w-full">
+            
+            {/* 1. Hero Row */}
+            <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+               <div className="lg:col-span-5 flex flex-col gap-4">
+                  <ScoreArc score={baseResults?.score} assumptionsOpen={assumptionsOpen} setAssumptionsOpen={setAssumptionsOpen} />
+                  
+                  {assumptionsOpen && (
+                    <div className="bg-[#1E293B] text-white rounded-2xl p-6 pop-shadow animate-slide-up space-y-4">
+                       <h3 className="font-black uppercase tracking-widest text-xs text-[#8B5CF6]">Decision Assumptions</h3>
+                       <div className="grid grid-cols-1 gap-3 text-[10px] font-bold uppercase tracking-widest text-white/60">
+                          <div className="flex justify-between border-b border-white/10 pb-2">
+                             <span>Returns (Blended)</span>
+                             <span className="text-white">{(baseResults?.blendedReturn * 100).toFixed(2)}% p.a.</span>
+                          </div>
+                          <div className="flex justify-between border-b border-white/10 pb-2">
+                             <span>Inflation</span>
+                             <span className="text-white">{INFLATION_RATE * 100}% p.a.</span>
+                          </div>
+                          <div className="flex justify-between border-b border-white/10 pb-2">
+                             <span>Safe Withdrawal Rate</span>
+                             <span className="text-white">{SWR * 100}% p.a.</span>
+                          </div>
+                          <div className="flex justify-between border-b border-white/10 pb-2">
+                             <span>Annuity Split</span>
+                             <span className="text-white">{ANNUITY_PCT * 100}% mandated</span>
+                          </div>
+                          <div className="flex justify-between">
+                             <span>Lifestyle Need</span>
+                             <span className="text-white">{LIFESTYLE_MULTIPLIERS[userData?.lifestyle] * 100}% of CTC</span>
+                          </div>
+                       </div>
+                       <p className="text-[9px] text-white/30 font-bold leading-relaxed border-t border-white/10 pt-4 italic">
+                          Returns based on: Scheme E (12.69%), C (8.87%), G (8.74%). Annuity assumes LIC rate of 6% p.a.
+                       </p>
+                    </div>
+                  )}
+               </div>
+
+               <div className="lg:col-span-7 grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+                  <StatCard 
+                    label="Projected Value" 
+                    value={formatIndian(baseResults?.projectedValue)} 
+                    subtext={`Available after ${ANNUITY_PCT*100}% annuity`} 
+                    icon={TrendingUp} 
+                    accent={COLORS.emerald} 
+                  />
+                  <StatCard 
+                    label="Mandatory Annuity" 
+                    value={formatIndian(baseResults?.annuityCorpus)} 
+                    subtext={`Pension: ${formatIndian(baseResults?.monthlyAnnuityIncome)}/m`} 
+                    icon={Shield} 
+                    accent={COLORS.violet} 
+                  />
+                  <div className="col-span-full bg-[#FBBF24] border-2 border-[#1E293B] rounded-[20px] p-6 lg:p-8 pop-shadow-vivid relative group" style={{ boxShadow: '6px 6px 0px 0px #1E293B' }}>
+                     <div className="text-[10px] font-black uppercase tracking-[2px] text-[#1E293B]/50 mb-3 flex items-center gap-2">
+                        <span className="w-3.5 h-3.5 flex items-center justify-center font-black">₹</span> Corpus Gap Closer
+                     </div>
+                     <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                        <div>
+                         <div className="font-heading font-black text-3xl md:text-5xl text-[#1E293B] leading-none mb-2">
+                            {baseResults?.monthlyGap > 0 ? `${formatIndian(baseResults.monthlyGap)}/m more` : "You're all set! 🎉"}
+                         </div>
+                         <div className="text-sm font-bold text-[#1E293B]/70 uppercase tracking-widest leading-relaxed max-w-sm">
+                            {baseResults?.monthlyGap > 0 
+                              ? `Bridge the ${formatIndian(baseResults.gap)} gap by increasing your monthly pulse.` 
+                              : "Your current pulse is high enough to sustain your lifestyle!"}
+                         </div>
+                        </div>
+                        {baseResults?.monthlyGap > 0 && (
+                          <div className="bg-white/30 px-3 py-1.5 rounded-lg text-[10px] font-black text-[#1E293B] shrink-0">
+                             ~{((baseResults.monthlyGap / userData.monthlyIncome) * 100).toFixed(1)}% OF CTC
+                          </div>
+                        )}
+                     </div>
+                  </div>
+               </div>
+            </section>
+
+            {/* 2. Your Biggest Lever */}
+            <section>
+               <div className="bg-white border-2 border-[#1E293B] rounded-[24px] overflow-hidden flex flex-col md:flex-row pop-shadow group">
+                  <div className="w-2 bg-[#8B5CF6]" />
+                  <div className="p-8 flex-1 flex flex-col md:flex-row items-center gap-8">
+                     <div className="flex-1 space-y-3">
+                        <div className="flex items-center gap-2 text-[#8B5CF6]">
+                           <Zap className="w-4 h-4" fill="currentColor" />
+                           <span className="text-xs font-black uppercase tracking-widest">Optimized Strategy</span>
+                        </div>
+                        <h2 className="font-heading font-extrabold text-2xl md:text-3xl text-[#1E293B] leading-tight">
+                           {baseResults?.monthlyGap > 0 
+                             ? `Boost your monthly contribution to completely zero-out the retirement gap.`
+                             : `Enable a 10% annual step-up to secure a significant surplus!`}
+                        </h2>
+                        <button 
+                          onClick={() => setSimulatorOpen(true)}
+                          className="candy-btn px-8 py-3 bg-[#8B5CF6] text-white font-black uppercase tracking-widest text-xs flex items-center gap-2 group cursor-pointer"
+                        >
+                          Try Simulator <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                        </button>
+                     </div>
+                     <div className="flex items-center gap-4 shrink-0">
+                        <div className="text-center font-black">
+                           <div className="text-[10px] text-[#1E293B]/30 mb-2">NOW</div>
+                           <div className="w-16 h-16 rounded-full border-2 border-[#1E293B] flex items-center justify-center font-heading text-xl text-[#1E293B] tabular-nums">{baseResults?.score}</div>
+                        </div>
+                        <ArrowRight className="text-[#1E293B]/20 w-5 h-5" />
+                        <div className="text-center font-black">
+                           <div className="text-[10px] text-[#8B5CF6] mb-2 font-black uppercase">Goal</div>
+                           <div className="w-20 h-20 rounded-full border-4 border-[#8B5CF6] flex items-center justify-center font-heading text-2xl text-[#8B5CF6] bg-[#8B5CF6]/5 tabular-nums">100</div>
+                        </div>
+                     </div>
+                  </div>
+               </div>
+            </section>
+
+            {/* 3. Quick Stats Row */}
+            <section className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+               <QuickStat label="Monthly Pulse" value={formatIndian(userData?.npsContribution)} subtext="Investment Rate" icon={Wallet} color={COLORS.pink} />
+               <QuickStat label="Total Wealth" value={formatIndian((userData?.npsCorpus || 0) + (userData?.totalSavings || 0))} subtext="NPS + Other Assets" icon={PiggyBank} color={COLORS.emerald} />
+               <QuickStat label="Time Remaining" value={`${userData?.retireAge - userData?.age} years`} subtext={`Until age ${userData?.retireAge}`} icon={Clock} color={COLORS.amber} />
+               <QuickStat label="Future Monthly Expense" value={formatIndian(baseResults?.monthlySpendAtRetirement)} subtext="Inflation Adjusted" icon={Home} color={COLORS.violet} />
+            </section>
+
+            {/* 4. What If Scenarios */}
+            <section className="space-y-6">
+               <div className="flex items-center gap-4">
+                  <h2 className="font-heading font-extrabold text-2xl md:text-3xl uppercase tracking-widest leading-none">Decision Scenarios</h2>
+                  <div className="flex-1 h-[2px] bg-[#1E293B]/10 relative">
+                     <svg className="absolute top-[-8px] right-0 w-12 h-4 text-[#8B5CF6]" viewBox="0 0 100 20" preserveAspectRatio="none">
+                        <path d="M0,10 Q25,0 50,10 T100,10" fill="none" stroke="currentColor" strokeWidth="4" />
+                     </svg>
+                  </div>
+               </div>
+
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {scenarios.map((s, i) => (
+                    <ScenarioCard key={i} title={s.title} impact={s.impact} desc={s.desc} onClick={() => setSimulatorOpen(true)} />
+                  ))}
+               </div>
+            </section>
+
+            {/* 5. Corpus Milestone Timeline */}
+            <section className="space-y-6">
+               <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-[#1E293B] flex items-center justify-center text-xl">🏆</div>
+                  <h2 className="font-heading font-extrabold text-2xl md:text-3xl uppercase tracking-widest leading-none">Wealth Milestones</h2>
+               </div>
+               
+               <div className="flex gap-8 overflow-x-auto pb-6 px-2 no-scrollbar scroll-smooth">
+                  {dynamicMilestones.map((m, i) => (
+                    <MilestoneItem 
+                      key={i} 
+                      milestone={m.target} 
+                      age={m.age} 
+                      achieved={m.achieved} 
+                      color={i % 2 === 0 ? COLORS.violet : COLORS.pink} 
+                    />
+                  ))}
+               </div>
+            </section>
+
+            {/* 6. Teaser Cards (Tax & AI) */}
+            <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+               {/* Tax Analysis Card */}
+               <div className="bg-[#8B5CF6] border-2 border-[#1E293B] rounded-[24px] p-8 text-white pop-shadow relative overflow-hidden flex flex-col justify-between group">
+                  <div className="relative z-10 flex flex-col h-full">
+                     <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center mb-6">
+                        <Shield className="text-[#8B5CF6] w-6 h-6" strokeWidth={3} />
+                     </div>
+                     <h3 className="font-heading font-extrabold text-2xl md:text-3xl mb-4 leading-tight">Stop overpaying<br/>the Taxman.</h3>
+                     <p className="text-white/80 font-bold mb-8 text-sm md:text-base leading-relaxed max-w-[80%]">
+                        Indian tax laws (AY 2025-26) have three distinct NPS buckets. Most people only use one.
+                     </p>
+                     <button 
+                       onClick={() => navigate('/tax-shield')}
+                       className="bg-white text-[#8B5CF6] px-6 py-3 rounded-full font-black uppercase tracking-widest text-xs border-2 border-white hover:bg-[#1E293B] hover:text-white transition-colors cursor-pointer w-fit mt-auto"
+                     >
+                        Run Analytics →
+                     </button>
+                  </div>
+                  <div className="absolute top-1/2 right-0 translate-y-[-50%] p-8 hidden md:flex flex-col gap-4 opacity-30 select-none pointer-events-none">
+                     <div className="px-4 py-2 border-2 border-white/50 rounded-full font-black text-xs">80CCD(1)</div>
+                     <div className="px-4 py-2 border-2 border-white/50 rounded-full font-black text-xs">80CCD(1B)</div>
+                     <div className="px-4 py-2 border-2 border-white/50 rounded-full font-black text-xs">80CCD(2)</div>
+                  </div>
+               </div>
+
+               {/* AI Co-Pilot Teaser */}
+               <div className="bg-white border-2 border-[#1E293B] rounded-[24px] overflow-hidden flex flex-col pop-shadow relative group">
+                  <div className="w-full h-2 bg-[#F472B6]" />
+                  <div className="p-8 space-y-6">
+                     <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-[#F472B6]/10 flex items-center justify-center border-2 border-[#1E293B]">🤖</div>
+                        <h3 className="font-heading font-extrabold text-2xl md:text-3xl text-[#1E293B] uppercase tracking-widest leading-none">AI Whisper</h3>
+                     </div>
+                     <p className="text-[#1E293B]/60 font-bold text-sm leading-relaxed">
+                        Every answer here is context-aware. I know your score is <span className="text-[#8B5CF6]">{baseResults?.score}</span> and your gap is <span className="text-[#FBBF24]">{formatIndian(baseResults?.gap)}</span>.
+                     </p>
+                     
+                     <div className="space-y-3">
+                        {['How do I hit ₹1Cr sooner?', 'Should I switch to corporate bond NPS?', 'Explain the 40% annuity rule.'].map(txt => (
+                           <button key={txt} className="w-full text-left p-3 rounded-xl border-2 border-[#1E293B] bg-[#FFFDF5] text-xs font-black uppercase tracking-widest shadow-[2px_2px_0_0_#1E293B] hover:shadow-[4px_4px_0_0_#F472B6] transition-all cursor-pointer">
+                              {txt}
+                           </button>
+                        ))}
+                     </div>
+
+                     <button className="w-full py-4 bg-[#F472B6] text-white border-2 border-[#1E293B] rounded-xl font-black uppercase tracking-widest text-sm pop-shadow hover:translate-x-[-2px] hover:translate-y-[-2px] hover:shadow-[6px_6px_0_0_#1E293B] cursor-pointer">
+                        Ask Pulse AI →
+                     </button>
+                  </div>
+               </div>
+            </section>
+         </div>
+      </main>
+
+      {/* --- Power Simulator Slide-up Panel --- */}
+      {simulatorOpen && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-end animate-fade-in">
+           <div className="absolute inset-0 bg-[#1E293B]/40 backdrop-blur-sm" onClick={() => setSimulatorOpen(false)} />
+           <div className="z-10 bg-white border-t-4 border-l-4 border-r-4 border-[#1E293B] rounded-t-[40px] w-full max-w-4xl p-8 pb-12 shadow-[0_-12px_40px_rgba(0,0,0,0.15)] flex flex-col relative animate-slide-up no-scrollbar overflow-y-auto max-h-[90vh]">
+              <div className="w-16 h-2 bg-[#1E293B]/10 rounded-full mx-auto mb-8 shrink-0" />
+
+              <div className="flex justify-between items-start mb-10 shrink-0">
+                 <div>
+                    <h2 className="font-heading font-black text-4xl text-[#1E293B] leading-none mb-2 tabular-nums">Decision Simulator</h2>
+                    <p className="text-sm font-bold text-[#1E293B]/40 uppercase tracking-widest">Calculated using {(simResults?.blendedReturn * 100).toFixed(1)}% expected return.</p>
+                 </div>
+                 <button onClick={() => setSimulatorOpen(false)} className="p-3 bg-[#F1F5F9] border-2 border-[#1E293B] rounded-full hover:bg-[#FEE2E2] hover:text-[#EF4444] transition-colors cursor-pointer pop-shadow">
+                    <X className="w-6 h-6" />
+                 </button>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 flex-1">
+                 <div className="space-y-12">
+                    <div className="space-y-6">
+                       <div className="flex justify-between items-center pr-2">
+                          <label className="text-xs font-black uppercase tracking-[3px] text-[#1E293B]/70">Monthly Investment</label>
+                          <span className="px-3 py-1 bg-[#FBBF24] border-2 border-[#1E293B] rounded-full font-black text-sm shadow-[2px_2px_0_0_#1E293B] tabular-nums">{formatIndian(simValues.npsContribution)}</span>
+                       </div>
+                       <input 
+                         type="range" min="500" max="50000" step="500" 
+                         value={simValues.npsContribution} 
+                         onChange={e => setSimValues({...simValues, npsContribution: parseInt(e.target.value)})}
+                         className="w-full h-3 bg-[#F1F5F9] border-2 border-[#1E293B] rounded-full appearance-none cursor-pointer accent-[#8B5CF6]"
+                       />
+                    </div>
+
+                    <div className="flex items-center justify-between p-6 bg-[#8B5CF6]/5 border-2 border-[#8B5CF6] rounded-2xl border-dashed">
+                       <div>
+                          <div className="font-black uppercase tracking-widest text-[#8B5CF6] text-sm mb-1">10% Annual Step-up</div>
+                          <div className="text-[10px] font-bold text-[#1E293B]/50">Increases contribution with your salary hikes</div>
+                       </div>
+                       <button 
+                        onClick={() => setSimValues({...simValues, stepUp: simValues.stepUp > 0 ? 0 : 0.1})}
+                        className={`w-14 h-8 rounded-full border-2 border-[#1E293B] relative transition-colors duration-300 shadow-[2px_2px_0_0_#1E293B] ${simValues.stepUp > 0 ? 'bg-[#34D399]' : 'bg-[#E2E8F0]'}`}
+                       >
+                         <div className={`absolute top-1 w-5 h-5 bg-white border-2 border-[#1E293B] rounded-full transition-all duration-300 ${simValues.stepUp > 0 ? 'left-7' : 'left-1'}`} />
+                       </button>
+                    </div>
+
+                    <div className="space-y-4">
+                       <label className="text-xs font-black uppercase tracking-[3px] text-[#1E293B]/70">Equity Allocation (Max {getMaxEquityPct(userData?.age)}%)</label>
+                        <div className="flex gap-4">
+                          {[25, 50, 75].map(eq => (
+                             <button 
+                               key={eq}
+                               disabled={eq > getMaxEquityPct(userData?.age)}
+                               onClick={() => setSimValues({...simValues, npsEquity: eq})}
+                               className={`flex-1 py-3 rounded-xl border-2 border-[#1E293B] font-black uppercase tracking-widest text-sm transition-all cubic ${simValues.npsEquity === eq ? 'bg-[#8B5CF6] text-white shadow-[4px_4px_0_0_#1E293B] -translate-y-1' : eq > getMaxEquityPct(userData?.age) ? 'bg-slate-100 text-slate-300 opacity-50 cursor-not-allowed border-[#CBD5E1]' : 'bg-white text-[#1E293B] hover:shadow-[4px_4px_0_0_#1E293B] hover:-translate-y-1'}`}
+                             >
+                               {eq}%
+                             </button>
+                          ))}
+                       </div>
+                    </div>
+
+                    <div className="space-y-4">
+                       <label className="text-xs font-black uppercase tracking-[3px] text-[#1E293B]/70">Retirement Age</label>
+                       <div className="flex flex-wrap gap-4">
+                          {[55, 58, 60, 65].map(ra => (
+                             <button 
+                               key={ra}
+                               onClick={() => setSimValues({...simValues, retireAge: ra})}
+                               className={`min-w-[70px] flex-1 py-3 rounded-xl border-2 border-[#1E293B] font-black uppercase tracking-widest text-sm transition-all cubic ${simValues.retireAge === ra ? 'bg-[#34D399] text-[#1E293B] shadow-[4px_4px_0_0_#1E293B] -translate-y-1' : 'bg-white text-[#1E293B] hover:shadow-[4px_4px_0_0_#1E293B] hover:-translate-y-1'}`}
+                             >
+                               {ra}
+                             </button>
+                          ))}
+                       </div>
+                    </div>
+                 </div>
+
+                 <div className="bg-[#FFFDF5] border-2 border-[#1E293B] rounded-3xl p-8 flex flex-col justify-between items-center gap-8 relative overflow-hidden shadow-[inset_4px_4px_12px_rgba(0,0,0,0.05)]">
+                    <div className="absolute top-4 right-4 text-[10px] font-black uppercase tracking-widest text-[#1E293B]/20">Predictive Impact</div>
+                    
+                    <div className="text-center space-y-2">
+                       <h3 className="text-xs font-black uppercase tracking-widest text-[#1E293B]/40">Simulated Score</h3>
+                       <div className="flex items-center gap-6">
+                         <div className="font-heading font-black text-8xl md:text-9xl text-[#1E293B] tabular-nums">{simResults?.score}</div>
+                         <div className={`px-4 py-2 rounded-full border-2 border-[#1E293B] font-black text-sm shadow-[3px_3px_0_0_#1E293B] ${simResults?.score >= baseResults?.score ? 'bg-[#D1FAE5] text-[#065F46]' : 'bg-[#FEE2E2] text-[#991B1B]'}`}>
+                            {simResults?.score >= baseResults?.score ? `+${simResults?.score - baseResults?.score}` : simResults?.score - baseResults?.score} PTS
+                         </div>
+                       </div>
+                    </div>
+
+                    <div className="w-full space-y-4">
+                       <div className="flex justify-between items-center text-sm font-bold border-b border-[#1E293B]/10 pb-4">
+                          <span className="text-[#1E293B]/50 uppercase tracking-widest">New Future Value</span>
+                          <span className="text-lg font-black tabular-nums">{formatIndian(simResults?.projectedValue)}</span>
+                       </div>
+                       <div className="flex justify-between items-center text-sm font-bold border-b border-[#1E293B]/10 pb-4">
+                          <span className="text-[#1E293B]/50 uppercase tracking-widest">New Monthly Pension</span>
+                          <span className="text-lg font-black tabular-nums">{formatIndian(simResults?.monthlyAnnuityIncome)}/m</span>
+                       </div>
+                    </div>
+
+                    <button 
+                      onClick={async () => {
+                         const user = auth.currentUser;
+                         if (user) {
+                           await setDoc(doc(db, 'users', user.uid), {
+                             ...simValues,
+                             ...simResults,
+                             updatedAt: new Date().toISOString()
+                           }, { merge: true });
+                           setUserData({ ...userData, ...simValues, ...simResults });
+                           setSimulatorOpen(false);
+                         }
+                      }}
+                      className="w-full py-5 bg-[#8B5CF6] text-white font-heading font-black text-xl uppercase tracking-widest candy-btn flex items-center justify-center gap-3"
+                    >
+                       Set As Baseline <CheckCircle2 className="w-6 h-6" />
+                    </button>
+                 </div>
+              </div>
+           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

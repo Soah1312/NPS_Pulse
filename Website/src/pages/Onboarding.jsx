@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowRight, ArrowLeft, Upload, Check, Loader2, Activity, Sparkles, IndianRupee, Zap } from 'lucide-react';
 import { db, auth } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
+import { calculateRetirement } from '../utils/math';
 
 const COLORS = {
   bg: '#FFFDF5',
@@ -69,7 +70,6 @@ const FinalScoreArc = ({ score = 82 }) => {
   );
 };
 
-// Moved components outside to prevent unmounting/losing focus on re-renders
 const CardOption = ({ label, selected, onClick, desc }) => (
   <button 
     onClick={onClick}
@@ -117,7 +117,8 @@ export default function Onboarding() {
     retireAge: 60,
     lifestyle: '',
     addSavings: false,
-    totalSavings: ''
+    totalSavings: '',
+    taxRegime: 'new'
   });
 
   const [results, setResults] = useState({
@@ -143,61 +144,11 @@ export default function Onboarding() {
   const [calcMsg, setCalcMsg] = useState(0);
   useEffect(() => {
     if (step === 8) {
-      // 1. PERFORM CALCULATIONS
-      const calculateResults = () => {
-        const age = parseInt(formData.age) || 25;
-        const retireAge = parseInt(formData.retireAge) || 60;
-        const yearsToRetire = Math.max(1, retireAge - age);
-        const monthlyIncome = parseFloat(formData.monthlyIncome) || 0;
-        const currentCorpus = (parseFloat(formData.npsCorpus) || 0) + (formData.addSavings ? parseFloat(formData.totalSavings) || 0 : 0);
-        const monthlyContribution = parseFloat(formData.npsContribution) || 0;
-        
-        // Constants
-        const expectedReturn = 0.10; // 10% annual NPS return
-        const inflation = 0.06; // 6% annual inflation
-        const swr = 0.04; // 4% Safe Withdrawal Rate
-        
-        const r = expectedReturn / 12;
-        const n = yearsToRetire * 12;
-
-        // Future Value of Current Corpus: FV = P * (1 + r)^n
-        const fvCurrent = currentCorpus * Math.pow(1 + r, n);
-        
-        // Future Value of Monthly Contributions: FV = PMT * [((1 + r)^n - 1) / r]
-        const fvContributions = monthlyContribution * (Math.pow(1 + r, n) - 1) / r;
-        
-        const projectedValue = fvCurrent + fvContributions;
-
-        // Required Corpus Calculation
-        // Multiplier based on lifestyle
-        const multipliers = { essential: 0.5, comfortable: 0.75, premium: 1.0 };
-        const lifestyleMultiplier = multipliers[formData.lifestyle] || 0.75;
-        
-        // Monthly spend at retirement adjusted for inflation
-        const monthlySpendAtRetirement = monthlyIncome * lifestyleMultiplier * Math.pow(1 + inflation, yearsToRetire);
-        
-        // Required corpus = (Annual Spend) / SWR
-        const requiredCorpus = (monthlySpendAtRetirement * 12) / swr;
-
-        // Score: (Projected / Required) * 100
-        const score = Math.min(100, Math.round((projectedValue / requiredCorpus) * 100));
-
-        // Monthly gap to bridge: Additional PMT needed to reach RequiredCorpus
-        const gap = Math.max(0, requiredCorpus - projectedValue);
-        const monthlyGap = gap > 0 ? (gap * r) / (Math.pow(1 + r, n) - 1) : 0;
-
-        return {
-          score,
-          projectedValue,
-          requiredCorpus,
-          monthlyGap
-        };
-      };
-
-      const calculated = calculateResults();
+      // PERFORM CALCULATIONS USING CENTRALIZED MATH
+      const calculated = calculateRetirement(formData);
       setResults(calculated);
 
-      // 2. SAVE DATA
+      // SAVE DATA
       const saveData = async () => {
         try {
           if (auth?.currentUser) {
@@ -258,7 +209,6 @@ export default function Onboarding() {
       <MemphisDotGrid />
       <Confetti />
 
-      {/* 0. Micro Loading Transition */}
       {step === 0 && (
         <div className="z-10 text-center animate-fade-in flex flex-col items-center">
           <Loader2 className="w-12 h-12 animate-spin text-[#8B5CF6] mb-6" />
@@ -266,10 +216,8 @@ export default function Onboarding() {
         </div>
       )}
 
-      {/* 1-7. UI Steps */}
       {step >= 1 && step <= 7 && (
         <div className="z-10 w-full max-w-lg bg-white border-2 border-[#1E293B] rounded-3xl p-6 md:p-8 pop-shadow animate-slide-up flex flex-col relative overflow-hidden h-auto min-h-[450px] max-h-[90vh]">
-          {/* Progress Bar Container */}
           <div className="w-full mb-6 shrink-0 relative">
              <div className="flex justify-between items-center mb-3">
                {step > 1 ? (
@@ -350,7 +298,7 @@ export default function Onboarding() {
                   <div className="animate-fade-in space-y-4 pt-4 border-t-2 border-dashed border-[#1E293B]/20">
                     <p className="text-xs font-bold uppercase tracking-widest text-[#1E293B]/60 text-center">Tier I is your main retirement account</p>
                     <div className="grid grid-cols-2 gap-4">
-                       <InputField label="Monthly (₹)" type="number" name="npsContribution" value={formData.npsContribution} onChange={handleChange} placeholder="5,000" />
+                       <InputField label="Monthly (₹)" type="number" name="npsContribution" value={formData.npsContribution} onChange={handleChange} placeholder="5,00,000" />
                        <InputField label="Total Corpus (₹)" type="number" name="npsCorpus" value={formData.npsCorpus} onChange={handleChange} placeholder="1.2L" />
                     </div>
                   </div>
@@ -366,15 +314,12 @@ export default function Onboarding() {
                     {formData.retireAge}
                     <span className="text-lg md:text-xl text-[#1E293B]/50 font-bold uppercase tracking-widest absolute -right-16 md:-right-20 bottom-3 md:bottom-4">Years</span>
                   </div>
-                  
-                  {/* Tailwind native slider override fixing visibility */}
                   <input 
                     type="range" min="50" max="70" 
                     value={formData.retireAge} 
                     onChange={e => setFormData({...formData, retireAge: parseInt(e.target.value)})}
                     className="w-full h-3 bg-[#E2E8F0] border-2 border-[#1E293B] rounded-lg appearance-none cursor-pointer accent-[#8B5CF6]"
                   />
-                  
                   <p className="mt-8 font-bold text-[#1E293B]/60 uppercase tracking-widest text-xs md:text-sm">Earlier retirement requires higher contributions.</p>
                 </div>
               </div>
@@ -384,9 +329,9 @@ export default function Onboarding() {
               <div className="animate-fade-in space-y-4">
                 <h2 className="font-heading font-extrabold text-2xl md:text-3xl leading-tight text-center mb-6">What kind of life do you want after retirement?</h2>
                 {[
-                  { val: 'essential', label: 'Essential', desc: 'Basic needs covered securely' },
-                  { val: 'comfortable', label: 'Comfortable', desc: 'Travel and daily flexibility' },
-                  { val: 'premium', label: 'Premium', desc: 'Financial freedom and luxury' }
+                  { val: 'essential', label: 'Essential', desc: '40% of income — basic needs only' },
+                  { val: 'comfortable', label: 'Comfortable', desc: '60% of income — realistic middle India' },
+                  { val: 'premium', label: 'Premium', desc: '80% of income — high lifestyle' }
                 ].map(opt => (
                   <CardOption 
                     key={opt.val} label={opt.label} desc={opt.desc} 
@@ -394,24 +339,37 @@ export default function Onboarding() {
                     onClick={() => setFormData({...formData, lifestyle: opt.val})} 
                   />
                 ))}
+                <p className="text-[10px] font-bold text-[#1E293B]/40 uppercase text-center mt-2 px-4 italic">Nobody needs to replace 100% of gross income in retirement.</p>
               </div>
             )}
 
             {step === 7 && (
               <div className="animate-fade-in space-y-6 pt-2 text-center">
                  <h2 className="font-heading font-extrabold text-2xl md:text-3xl leading-tight">Want a more accurate score?</h2>
-                 <p className="font-bold text-[#1E293B]/60 uppercase tracking-widest text-sm">Add your existing savings (Optional)</p>
+                 <p className="font-bold text-[#1E293B]/60 uppercase tracking-widest text-sm">Add your details (Optional)</p>
                  
-                 <div className="grid grid-cols-2 gap-4 mt-6">
-                   <CardOption label="Skip" selected={!formData.addSavings} onClick={() => setFormData({...formData, addSavings: false})} />
-                   <CardOption label="Yes, Add" selected={formData.addSavings} onClick={() => setFormData({...formData, addSavings: true})} />
-                 </div>
+                 <div className="bg-white border-2 border-[#1E293B] rounded-2xl p-6 text-left space-y-6 pop-shadow">
+                    <div>
+                      <p className="font-bold text-[#1E293B]/60 uppercase tracking-widest text-xs mb-3">Add other savings (MF, EPF, etc.)</p>
+                      <div className="grid grid-cols-2 gap-3">
+                         <button onClick={() => setFormData({...formData, addSavings: false})} className={`py-3 rounded-xl border-2 border-[#1E293B] font-black uppercase tracking-widest text-xs ${!formData.addSavings ? 'bg-[#1E293B] text-white shadow-[3px_3px_0_0_#FBBF24]' : 'bg-white text-[#1E293B]'}`}>Skip</button>
+                         <button onClick={() => setFormData({...formData, addSavings: true})} className={`py-3 rounded-xl border-2 border-[#1E293B] font-black uppercase tracking-widest text-xs ${formData.addSavings ? 'bg-[#34D399] text-[#1E293B] shadow-[3px_3px_0_0_#1E293B]' : 'bg-white text-[#1E293B]'}`}>Add</button>
+                      </div>
+                      {formData.addSavings && (
+                        <div className="mt-4 animate-scale-up">
+                          <InputField label="Total Savings (₹)" type="number" name="totalSavings" value={formData.totalSavings} onChange={handleChange} placeholder="5,00,000" />
+                        </div>
+                      )}
+                    </div>
 
-                 {formData.addSavings && (
-                   <div className="animate-fade-in pt-4">
-                     <InputField label="Total other savings (MF, FD, EPF)" type="number" name="totalSavings" value={formData.totalSavings} onChange={handleChange} placeholder="e.g. 5,00,000" />
-                   </div>
-                 )}
+                    <div>
+                      <p className="font-bold text-[#1E293B]/60 uppercase tracking-widest text-xs mb-3">Tax Regime (Default: New)</p>
+                      <div className="grid grid-cols-2 gap-3">
+                         <button onClick={() => setFormData({...formData, taxRegime: 'new'})} className={`py-3 rounded-xl border-2 border-[#1E293B] font-black uppercase tracking-widest text-xs ${formData.taxRegime === 'new' ? 'bg-[#8B5CF6] text-white shadow-[3px_3px_0_0_#1E293B]' : 'bg-white text-[#1E293B]'}`}>New Regime</button>
+                         <button onClick={() => setFormData({...formData, taxRegime: 'old'})} className={`py-3 rounded-xl border-2 border-[#1E293B] font-black uppercase tracking-widest text-xs ${formData.taxRegime === 'old' ? 'bg-[#8B5CF6] text-white shadow-[3px_3px_0_0_#1E293B]' : 'bg-white text-[#1E293B]'}`}>Old Regime</button>
+                      </div>
+                    </div>
+                 </div>
               </div>
             )}
           </div>
@@ -437,7 +395,6 @@ export default function Onboarding() {
         </div>
       )}
 
-      {/* 8. Calculating Transition Screen */}
       {step === 8 && (
         <div className="z-10 animate-fade-in flex flex-col items-center">
            <h2 className="font-heading font-extrabold text-3xl md:text-4xl mb-12 text-center leading-tight">Calculating your<br/>retirement score...</h2>
@@ -448,23 +405,21 @@ export default function Onboarding() {
                { idx: 2, text: 'Inflation adjustment' },
                { idx: 3, text: 'Lifestyle mapping' }
              ].map(item => (
-               <div key={item.idx} className="flex items-center gap-4 animate-fade-in">
-                 <div className={`w-8 h-8 shrink-0 rounded-full border-2 border-[#1E293B] flex items-center justify-center transition-colors duration-500 ${calcMsg >= item.idx ? 'bg-[#34D399] shadow-[2px_2px_0_0_#1E293B]' : 'bg-white'}`}>
-                   {calcMsg >= item.idx && <Check className="w-5 h-5 text-white" strokeWidth={4} />}
-                 </div>
-                 <span className={`font-bold text-lg md:text-xl uppercase tracking-widest transition-opacity duration-500 ${calcMsg >= item.idx ? 'opacity-100 text-[#1E293B]' : 'opacity-30'}`}>
-                   {item.text}
-                 </span>
-               </div>
+                <div key={item.idx} className="flex items-center gap-4 animate-fade-in">
+                  <div className={`w-8 h-8 shrink-0 rounded-full border-2 border-[#1E293B] flex items-center justify-center transition-colors duration-500 ${calcMsg >= item.idx ? 'bg-[#34D399] shadow-[2px_2px_0_0_#1E293B]' : 'bg-white'}`}>
+                    {calcMsg >= item.idx && <Check className="w-5 h-5 text-white" strokeWidth={4} />}
+                  </div>
+                  <span className={`font-bold text-lg md:text-xl uppercase tracking-widest transition-opacity duration-500 ${calcMsg >= item.idx ? 'opacity-100 text-[#1E293B]' : 'opacity-30'}`}>
+                    {item.text}
+                  </span>
+                </div>
              ))}
            </div>
         </div>
       )}
 
-      {/* 9. Final AHA Moment UI */}
       {step === 9 && (
         <div className="z-10 w-full max-w-4xl animate-slide-up flex flex-col lg:flex-row gap-8 items-center justify-center">
-          
           <div className="w-full lg:w-1/2 flex justify-center">
              <FinalScoreArc score={results.score} />
           </div>
@@ -472,7 +427,6 @@ export default function Onboarding() {
           <div className="w-full lg:w-1/2 flex flex-col gap-6">
              <div className="bg-white border-2 border-[#1E293B] rounded-3xl p-6 md:p-8 pop-shadow">
                <div className="font-bold uppercase tracking-widest text-[#1E293B]/60 text-xs md:text-sm mb-4">Your Retirement Outlook</div>
-               
                <div className="grid grid-cols-2 gap-4 mb-6">
                  <div>
                    <div className="text-xs md:text-sm font-bold opacity-60 uppercase mb-1">Projected Value</div>
@@ -483,9 +437,7 @@ export default function Onboarding() {
                    <div className="font-heading font-bold text-2xl md:text-3xl">{formatCurrency(results.requiredCorpus)}</div>
                  </div>
                </div>
-               
                <div className="h-px w-full bg-[#1E293B]/10 mb-6" />
-               
                <div className="bg-[#FFFDF5] border-2 border-[#FBBF24] rounded-2xl p-5 md:p-6 shadow-[4px_4px_0_0_#FBBF24]">
                  <div className="font-bold uppercase tracking-widest text-[#FBBF24] text-xs md:text-sm mb-2 flex items-center gap-2">
                    <Zap className="w-4 h-4 md:w-5 md:h-5" /> Your Biggest Lever
@@ -499,8 +451,7 @@ export default function Onboarding() {
                  </div>
                </div>
              </div>
-
-             <button onClick={() => navigate('/')} className="candy-btn w-full py-4 text-lg md:text-xl font-black uppercase tracking-widest pop-shadow hover:bg-[#1E293B]">
+             <button onClick={() => navigate('/dashboard')} className="candy-btn w-full py-4 text-lg md:text-xl font-black uppercase tracking-widest pop-shadow hover:bg-[#1E293B]">
                Go To Dashboard
              </button>
           </div>

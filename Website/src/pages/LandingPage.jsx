@@ -268,6 +268,7 @@ export default function LandingPage() {
           <div className="hidden md:flex gap-8 font-bold uppercase tracking-wide text-sm">
              <a href="#features" className="nav-link text-[#1E293B] hover:text-[#8B5CF6] transition-colors">Features</a>
              <a href="#how" className="nav-link text-[#1E293B] hover:text-[#F472B6] transition-colors">How It Works</a>
+             <button onClick={() => navigate('/learn')} className="nav-link text-[#1E293B] hover:text-[#8B5CF6] transition-colors cursor-pointer uppercase tracking-wide">Learn</button>
           </div>
           
           <div className="hidden md:flex items-center gap-6 font-bold text-[#1E293B]">
@@ -492,6 +493,7 @@ export default function LandingPage() {
             <div className="flex flex-wrap justify-center md:justify-end gap-8 font-bold uppercase tracking-wide text-sm">
               <a href="#features" className="hover:text-[#F472B6] transition-colors">Features</a>
               <a href="#how" className="hover:text-[#FBBF24] transition-colors">How It Works</a>
+              <button onClick={() => navigate('/learn')} className="hover:text-[#8B5CF6] transition-colors cursor-pointer uppercase tracking-wide font-bold">Learn</button>
               <a href="#" className="hover:text-[#34D399] transition-colors">Privacy Policy</a>
               <a href="#" className="hover:text-[#8B5CF6] transition-colors">Terms of Service</a>
             </div>
