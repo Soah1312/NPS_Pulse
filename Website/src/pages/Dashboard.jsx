@@ -3,11 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Home, Shield, Moon, Bot, Settings, TrendingUp, Target, Zap, 
   Clock, PiggyBank, Wallet, LogOut, Menu, X, Bell, ArrowRight,
-  ChevronUp, Sparkles, CheckCircle2, Info, BarChart2
+  ChevronUp, Sparkles, CheckCircle2, Info, BarChart2, HelpCircle
 } from 'lucide-react';
 import { auth, db } from '../lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
+import TourOverlay from '../components/TourOverlay';
+import InfoTooltip from '../components/InfoTooltip';
+import { TOUR_STEPS, DASHBOARD_TIPS } from '../constants/tooltips';
 import { 
   calculateRetirement, 
   getMilestoneAge, 
@@ -126,6 +129,7 @@ export default function Dashboard() {
   const [simulatorOpen, setSimulatorOpen] = useState(false);
   const [assumptionsOpen, setAssumptionsOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [tourActive, setTourActive] = useState(false);
   const [simValues, setSimValues] = useState({
     npsContribution: 0,
     retireAge: 60,
@@ -148,6 +152,10 @@ export default function Dashboard() {
             stepUp: data.stepUp || 0,
             npsEquity: data.npsEquity || 50
           });
+          // Auto-trigger tour on first visit
+          if (!localStorage.getItem('nps_pulse_tour_seen')) {
+            setTimeout(() => setTourActive(true), 800);
+          }
         } else {
           navigate('/onboarding');
         }
@@ -241,6 +249,20 @@ export default function Dashboard() {
     navigate('/');
   };
 
+  const handleTourComplete = () => {
+    localStorage.setItem('nps_pulse_tour_seen', 'true');
+    setTourActive(false);
+  };
+
+  const handleTourSkip = () => {
+    localStorage.setItem('nps_pulse_tour_seen', 'true');
+    setTourActive(false);
+  };
+
+  const handleStartTour = () => {
+    setTourActive(true);
+  };
+
   const navItems = [
     { label: 'Dashboard', icon: Home, path: '/dashboard', active: true },
     { label: 'Tax Shield', icon: Shield, path: '/tax-shield' },
@@ -306,24 +328,30 @@ export default function Dashboard() {
             ))}
          </nav>
 
-         <div className="pt-8 border-t border-white/10 mt-auto">
-            <div className="flex items-center gap-3 p-2 bg-white/5 rounded-2xl">
-               {auth.currentUser?.photoURL ? (
-                 <img src={auth.currentUser.photoURL} alt="User" referrerPolicy="no-referrer" className="w-10 h-10 rounded-full border-2 border-[#8B5CF6]" />
-               ) : (
-                 <div className="w-10 h-10 rounded-full bg-[#8B5CF6] border-2 border-white flex items-center justify-center font-bold text-white uppercase text-lg">
-                   {userData?.firstName?.[0] || 'U'}
-                 </div>
-               )}
-               <div className="flex flex-col">
-                  <span className="text-white font-bold text-sm tracking-wide">{userData?.firstName || 'User'}</span>
-                  <button className="text-[10px] text-white/50 uppercase tracking-widest font-black hover:text-[#F472B6]">Edit Profile</button>
-               </div>
-               <button onClick={handleLogout} className="ml-auto p-2 text-white/30 hover:text-white transition-colors">
-                  <LogOut className="w-4 h-4" />
-               </button>
-            </div>
-         </div>
+         <div className="pt-8 border-t border-white/10 mt-auto space-y-4">
+             <button
+               onClick={handleStartTour}
+               className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-full border border-white/10 text-white/50 hover:text-white hover:bg-white/5 transition-all text-[10px] font-black uppercase tracking-widest"
+             >
+               <HelpCircle className="w-4 h-4" /> Take the Tour
+             </button>
+             <div className="flex items-center gap-3 p-2 bg-white/5 rounded-2xl">
+                {auth.currentUser?.photoURL ? (
+                  <img src={auth.currentUser.photoURL} alt="User" referrerPolicy="no-referrer" className="w-10 h-10 rounded-full border-2 border-[#8B5CF6]" />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-[#8B5CF6] border-2 border-white flex items-center justify-center font-bold text-white uppercase text-lg">
+                    {userData?.firstName?.[0] || 'U'}
+                  </div>
+                )}
+                <div className="flex flex-col">
+                   <span className="text-white font-bold text-sm tracking-wide">{userData?.firstName || 'User'}</span>
+                   <button className="text-[10px] text-white/50 uppercase tracking-widest font-black hover:text-[#F472B6]">Edit Profile</button>
+                </div>
+                <button onClick={handleLogout} className="ml-auto p-2 text-white/30 hover:text-white transition-colors">
+                   <LogOut className="w-4 h-4" />
+                </button>
+             </div>
+          </div>
       </aside>
 
       {/* --- Mobile Nav Bottom (Mobile Only) --- */}
@@ -418,7 +446,7 @@ export default function Dashboard() {
             
             {/* 1. Hero Row */}
             <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
-               <div className="lg:col-span-5 flex flex-col gap-4">
+               <div id="tour-score-arc" className="lg:col-span-5 flex flex-col gap-4">
                   <ScoreArc score={baseResults?.score} assumptionsOpen={assumptionsOpen} setAssumptionsOpen={setAssumptionsOpen} />
                   
                   {assumptionsOpen && (
@@ -454,23 +482,27 @@ export default function Dashboard() {
                </div>
 
                <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-6 w-full">
-                  <StatCard 
-                    label="Projected Value" 
-                    value={formatIndian(baseResults?.projectedValue)} 
-                    subtext={`Available after ${ANNUITY_PCT*100}% annuity`} 
-                    icon={TrendingUp} 
-                    accent={COLORS.emerald} 
-                  />
-                  <StatCard 
-                    label="Mandatory Annuity" 
-                    value={formatIndian(baseResults?.annuityCorpus)} 
-                    subtext={`Pension: ${formatIndian(baseResults?.monthlyAnnuityIncome)}/m`} 
-                    icon={Shield} 
-                    accent={COLORS.violet} 
-                  />
-                  <div className="col-span-full bg-[#FBBF24] border-2 border-[#1E293B] rounded-[20px] p-6 md:p-8 pop-shadow-vivid relative group" style={{ boxShadow: '4px 4px 0px 0px #1E293B' }}>
+                  <div id="tour-projected-value">
+                    <StatCard 
+                      label={<>Projected Value <InfoTooltip text={DASHBOARD_TIPS.projectedValue} /></>} 
+                      value={formatIndian(baseResults?.projectedValue)} 
+                      subtext={`Available after ${ANNUITY_PCT*100}% annuity`} 
+                      icon={TrendingUp} 
+                      accent={COLORS.emerald} 
+                    />
+                  </div>
+                  <div id="tour-annuity">
+                    <StatCard 
+                      label={<>Mandatory Annuity <InfoTooltip text={DASHBOARD_TIPS.annuity} /></>} 
+                      value={formatIndian(baseResults?.annuityCorpus)} 
+                      subtext={`Pension: ${formatIndian(baseResults?.monthlyAnnuityIncome)}/m`} 
+                      icon={Shield} 
+                      accent={COLORS.violet} 
+                    />
+                  </div>
+                  <div id="tour-corpus-gap" className="col-span-full bg-[#FBBF24] border-2 border-[#1E293B] rounded-[20px] p-6 md:p-8 pop-shadow-vivid relative group" style={{ boxShadow: '4px 4px 0px 0px #1E293B' }}>
                      <div className="text-[10px] font-black uppercase tracking-[2px] text-[#1E293B]/50 mb-3 flex items-center gap-2">
-                        <span className="w-3.5 h-3.5 flex items-center justify-center font-black">₹</span> Corpus Gap Closer
+                        <span className="w-3.5 h-3.5 flex items-center justify-center font-black">₹</span> Corpus Gap Closer <InfoTooltip text={DASHBOARD_TIPS.corpusGap} />
                      </div>
                      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                         <div>
@@ -531,17 +563,17 @@ export default function Dashboard() {
             </section>
 
             {/* 3. Quick Stats Row */}
-            <section className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-               <QuickStat label="Monthly Pulse" value={formatIndian(userData?.npsContribution)} subtext="Investment Rate" icon={Wallet} color={COLORS.pink} />
-               <QuickStat label="Total Wealth" value={formatIndian((userData?.npsCorpus || 0) + (userData?.totalSavings || 0))} subtext="NPS + Other Assets" icon={PiggyBank} color={COLORS.emerald} />
-               <QuickStat label="Time Remaining" value={`${userData?.retireAge - userData?.age} years`} subtext={`Until age ${userData?.retireAge}`} icon={Clock} color={COLORS.amber} />
-               <QuickStat label="Future Monthly Expense" value={formatIndian(baseResults?.monthlySpendAtRetirement)} subtext="Inflation Adjusted" icon={Home} color={COLORS.violet} />
+            <section id="tour-quick-stats" className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+               <QuickStat label={<>Monthly Pulse <InfoTooltip text={DASHBOARD_TIPS.monthlyPulse} /></>} value={formatIndian(userData?.npsContribution)} subtext="Investment Rate" icon={Wallet} color={COLORS.pink} />
+               <QuickStat label={<>Total Wealth <InfoTooltip text={DASHBOARD_TIPS.totalWealth} /></>} value={formatIndian((userData?.npsCorpus || 0) + (userData?.totalSavings || 0))} subtext="NPS + Other Assets" icon={PiggyBank} color={COLORS.emerald} />
+               <QuickStat label={<>Time Remaining <InfoTooltip text={DASHBOARD_TIPS.timeRemaining} /></>} value={`${userData?.retireAge - userData?.age} years`} subtext={`Until age ${userData?.retireAge}`} icon={Clock} color={COLORS.amber} />
+               <QuickStat label={<>Future Expense <InfoTooltip text={DASHBOARD_TIPS.futureExpense} /></>} value={formatIndian(baseResults?.monthlySpendAtRetirement)} subtext="Inflation Adjusted" icon={Home} color={COLORS.violet} />
             </section>
 
             {/* 4. What If Scenarios */}
-            <section className="space-y-6">
+            <section id="tour-scenarios" className="space-y-6">
                <div className="flex items-center gap-4">
-                  <h2 className="font-heading font-extrabold text-xl md:text-3xl uppercase tracking-widest leading-none">Decision Scenarios</h2>
+                  <h2 className="font-heading font-extrabold text-xl md:text-3xl uppercase tracking-widest leading-none">Decision Scenarios <InfoTooltip text={DASHBOARD_TIPS.scenarios} /></h2>
                   <div className="flex-1 h-[2px] bg-[#1E293B]/10 relative">
                      <svg className="absolute top-[-8px] right-0 w-12 h-4 text-[#8B5CF6]" viewBox="0 0 100 20" preserveAspectRatio="none">
                         <path d="M0,10 Q25,0 50,10 T100,10" fill="none" stroke="currentColor" strokeWidth="4" />
@@ -566,10 +598,10 @@ export default function Dashboard() {
             </section>
 
             {/* 5. Corpus Milestone Timeline */}
-            <section className="space-y-6 overflow-hidden">
+            <section id="tour-milestones" className="space-y-6 overflow-hidden">
                <div className="flex items-center gap-3">
                   <div className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-[#1E293B] flex items-center justify-center text-lg md:text-xl shrink-0">🏆</div>
-                  <h2 className="font-heading font-extrabold text-xl md:text-3xl uppercase tracking-widest leading-none">Wealth Milestones</h2>
+                  <h2 className="font-heading font-extrabold text-xl md:text-3xl uppercase tracking-widest leading-none">Wealth Milestones <InfoTooltip text={DASHBOARD_TIPS.milestones} /></h2>
                </div>
                
                <div className="flex gap-4 md:gap-8 overflow-x-auto pb-6 px-2 no-scrollbar scroll-smooth">
@@ -586,7 +618,7 @@ export default function Dashboard() {
             </section>
 
             {/* 6. Teaser Cards (Tax & AI) */}
-            <section className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
+            <section id="tour-teasers" className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-8">
                {/* Tax Analysis Card */}
                <div className="bg-[#8B5CF6] border-2 border-[#1E293B] rounded-[24px] p-6 md:p-8 text-white pop-shadow relative overflow-hidden flex flex-col justify-between group">
                   <div className="relative z-10 flex flex-col h-full">
@@ -762,6 +794,15 @@ export default function Dashboard() {
               </div>
            </div>
         </div>
+      )}
+
+      {/* ── Tour Overlay ── */}
+      {tourActive && (
+        <TourOverlay
+          steps={TOUR_STEPS}
+          onComplete={handleTourComplete}
+          onSkip={handleTourSkip}
+        />
       )}
     </div>
   );

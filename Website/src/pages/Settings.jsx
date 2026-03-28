@@ -9,6 +9,8 @@ import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { deleteUser } from 'firebase/auth';
 import { calculateRetirement, getMaxEquityPct, formatIndian } from '../utils/math';
 import DashboardLayout, { useUser } from '../components/DashboardLayout';
+import InfoTooltip from '../components/InfoTooltip';
+import { SETTINGS_TIPS } from '../constants/tooltips';
 
 const SectionHeader = ({ icon: Icon, title, editing, onEdit, color }) => (
   <div className="flex items-center justify-between py-6 px-8 border-b border-[#1E293B]/5 transition-all">
@@ -263,7 +265,7 @@ const PageContent = () => {
 
               <div className="space-y-3">
                   <div className="flex justify-between items-center">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Equity Allocation</label>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1">Equity Allocation <InfoTooltip text={SETTINGS_TIPS.equityAllocation} size={12} /></label>
                     <span className="text-[9px] font-black text-[#F472B6]">Max for your age: {getMaxEquityPct(formData.age)}%</span>
                   </div>
                   <div className="grid grid-cols-3 gap-4">
@@ -396,7 +398,7 @@ const PageContent = () => {
                     onClick={() => setFormData({...formData, taxRegime: 'new'})}
                     className={`p-4 rounded-xl border-2 border-[#1E293B] text-left ${formData.taxRegime === 'new' ? 'bg-[#D1FAE5] border-[#34D399] shadow-[3px_3px_0_0_#34D399]' : 'bg-white opacity-40'}`}
                   >
-                      <div className="font-black text-xs uppercase tracking-widest">New Regime</div>
+                      <div className="font-black text-xs uppercase tracking-widest flex items-center gap-1">New Regime <InfoTooltip text={SETTINGS_TIPS.taxRegime} size={12} /></div>
                       <div className="text-[9px] font-bold text-slate-500 mt-1">Budget 2025 Standard</div>
                   </button>
                   <button 
@@ -409,7 +411,7 @@ const PageContent = () => {
                 </div>
                 <div className="space-y-4">
                   <div className="flex justify-between">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Basic Salary Assumption</label>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1">Basic Salary Assumption <InfoTooltip text={SETTINGS_TIPS.basicSalaryPct} size={12} /></label>
                     <span className="font-black text-[#34D399]">{formData.basicSalaryPct * 100}%</span>
                   </div>
                   <input 

@@ -3,6 +3,8 @@ import {
   Home, Coffee, Star, UtensilsCrossed, Heart, Plane, Users, Shield, 
   ChevronRight, ArrowRight, RotateCcw, CheckCircle2, TrendingUp, Info
 } from 'lucide-react';
+import InfoTooltip from '../components/InfoTooltip';
+import { DREAM_PLANNER_TIPS } from '../constants/tooltips';
 import { db, auth } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { calculateRetirement, formatIndian, INFLATION_RATE, LIFESTYLE_MULTIPLIERS } from '../utils/math';
@@ -95,7 +97,7 @@ const LifestyleCard = ({ type, selected, onClick, userData }) => {
       </ul>
 
       <div className="pt-4 border-t border-slate-100 mb-4">
-        <div className="text-[10px] font-black text-[#1E293B]/40 uppercase tracking-widest mb-1">Monthly Need</div>
+        <div className="text-[10px] font-black text-[#1E293B]/40 uppercase tracking-widest mb-1">Monthly Need <InfoTooltip text={DREAM_PLANNER_TIPS.monthlyNeed} size={12} /></div>
         <div className="flex items-center gap-2">
           <span className="font-heading font-bold text-base">{formatIndian(monthlyNeedToday)}</span>
           <ArrowRight className="w-3 h-3 text-slate-300" />
@@ -136,7 +138,7 @@ const InflationRealityCheck = ({ yearsToRetire, monthlyIncome, lifestyleMultipli
   return (
     <div className="bg-[#FBBF24] border-2 border-[#1E293B] rounded-[24px] p-8 pop-shadow flex flex-col md:flex-row items-center justify-between gap-8">
       <div className="space-y-2 text-center md:text-left">
-        <div className="text-xs font-black uppercase tracking-[3px] text-[#1E293B]">🔥 Inflation Reality Check</div>
+        <div className="text-xs font-black uppercase tracking-[3px] text-[#1E293B]">🔥 Inflation Reality Check <InfoTooltip text={DREAM_PLANNER_TIPS.inflationReality} size={12} /></div>
         <h2 className="font-heading font-extrabold text-2xl md:text-3xl text-[#1E293B] leading-tight">
           Your {formatIndian(monthlySpendToday)}/month lifestyle today...
         </h2>
@@ -180,7 +182,7 @@ const CategoryBreakdown = ({ monthlySpendToday, monthlySpendRetirement }) => {
                 <div className="w-10 h-10 rounded-full flex items-center justify-center border-2 border-[#1E293B] shadow-[2px_2px_0_0_#1E293B]" style={{ backgroundColor: `${cat.color}22` }}>
                   <Icon className="w-5 h-5 text-[#1E293B]" strokeWidth={2.5} style={{ color: cat.color }} />
                 </div>
-                <div className="font-bold text-sm text-[#1E293B] uppercase tracking-widest">{cat.name}</div>
+                <div className="font-bold text-sm text-[#1E293B] uppercase tracking-widest flex items-center gap-1">{cat.name} <InfoTooltip text={DREAM_PLANNER_TIPS[`category${cat.name.split(' ')[0]}`] || DREAM_PLANNER_TIPS.categoryHousing} size={12} /></div>
               </div>
 
               <div className="flex items-center justify-between mb-4">

@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Shield, Zap, TrendingUp, Info, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
 import { computeTax, NEW_REGIME_SLABS, OLD_REGIME_SLABS } from '../utils/math';
 import DashboardLayout, { useUser } from '../components/DashboardLayout';
+import InfoTooltip from '../components/InfoTooltip';
+import { TAX_SHIELD_TIPS } from '../constants/tooltips';
 
 const formatIndian = (num) => {
   return new Intl.NumberFormat('en-IN', {
@@ -99,7 +101,7 @@ const PageContent = () => {
                          <CheckCircle2 className="w-5 h-5 text-[#34D399]" />
                       </div>
                       <div>
-                         <div className="font-black text-sm uppercase tracking-wide">80CCD(1B) Bonus</div>
+                         <div className="font-black text-sm uppercase tracking-wide flex items-center gap-1">80CCD(1B) Bonus <InfoTooltip text={TAX_SHIELD_TIPS.section80CCD1B} size={12} /></div>
                          <p className="text-xs font-bold text-[#1E293B]/50 leading-relaxed max-w-xs">Exclusive ₹50,000 deduction for NPS subscribers only in the Old Regime.</p>
                       </div>
                    </div>
@@ -108,7 +110,7 @@ const PageContent = () => {
                          <CheckCircle2 className="w-5 h-5 text-[#8B5CF6]" />
                       </div>
                       <div>
-                         <div className="font-black text-sm uppercase tracking-wide">80CCD(2) Corporate</div>
+                         <div className="font-black text-sm uppercase tracking-wide flex items-center gap-1">80CCD(2) Corporate <InfoTooltip text={TAX_SHIELD_TIPS.section80CCD2} size={12} /></div>
                          <p className="text-xs font-bold text-[#1E293B]/50 leading-relaxed max-w-xs">Up to 10% basic salary deduction allowed in BOTH regimes. (14% for Govt)</p>
                       </div>
                    </div>
@@ -137,7 +139,7 @@ const PageContent = () => {
              {/* New Regime Slabs */}
              <div className="space-y-6">
                 <div className="flex justify-between items-end">
-                   <h3 className="font-black text-xl uppercase tracking-wider text-[#8B5CF6]">New Regime</h3>
+                   <h3 className="font-black text-xl uppercase tracking-wider text-[#8B5CF6] flex items-center gap-2">New Regime <InfoTooltip text={TAX_SHIELD_TIPS.newRegime} size={14} /></h3>
                    <span className="text-[10px] font-black uppercase tracking-widest bg-slate-100 text-slate-500 border border-slate-200 px-3 py-1 rounded-full">Default FY 2025-26</span>
                 </div>
                 <div className="space-y-3">
@@ -163,7 +165,7 @@ const PageContent = () => {
              {/* Old Regime Slabs */}
              <div className="space-y-6">
                 <div className="flex justify-between items-end">
-                   <h3 className="font-black text-xl uppercase tracking-wider text-[#34D399]">Old Regime</h3>
+                   <h3 className="font-black text-xl uppercase tracking-wider text-[#34D399] flex items-center gap-2">Old Regime <InfoTooltip text={TAX_SHIELD_TIPS.oldRegime} size={14} /></h3>
                    <span className="text-[10px] font-black uppercase tracking-widest bg-slate-100 text-slate-500 border border-slate-200 px-3 py-1 rounded-full">Deduction Based</span>
                 </div>
                 <div className="space-y-3">
@@ -200,7 +202,7 @@ const PageContent = () => {
              
              <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-8 w-full">
                 <div className="space-y-4">
-                   <label className="text-[10px] font-black uppercase tracking-[3px] text-slate-400">Sec 80C (PPF, ELSS, Insurance)</label>
+                   <label className="text-[10px] font-black uppercase tracking-[3px] text-slate-400 flex items-center gap-1">Sec 80C (PPF, ELSS, Insurance) <InfoTooltip text={TAX_SHIELD_TIPS.section80C} size={12} /></label>
                    <div className="relative">
                       <span className="absolute left-6 top-1/2 -translate-y-1/2 font-bold text-slate-300">₹</span>
                       <input 
@@ -212,7 +214,7 @@ const PageContent = () => {
                    </div>
                 </div>
                 <div className="space-y-4">
-                   <label className="text-[10px] font-black uppercase tracking-[3px] text-slate-400">NPS Bonus 80CCD(1B)</label>
+                   <label className="text-[10px] font-black uppercase tracking-[3px] text-slate-400 flex items-center gap-1">NPS Bonus 80CCD(1B) <InfoTooltip text={TAX_SHIELD_TIPS.nps80CCD1B} size={12} /></label>
                    <div className="flex gap-3">
                       {[0, 25000, 50000].map(val => (
                          <button 
