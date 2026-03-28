@@ -1,0 +1,36 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if the user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function to check ownership
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Example rule blocking read/write unless the user owns the data
+    match /users/{userId} {
+      // Allows anyone to CREATE an account for themselves
+      allow create: if isOwner(userId);
+      // Only the authenticated owner can read/update their profile/data
+      allow read, update: if isOwner(userId);
+      // Block deleting unless needed
+      allow delete: if false;
+      
+      // Cascade permissions to subcollections under a user
+      match /{document=**} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+    
+    // Example global public read, admin-only write
+    // match /sharedData/{docId} {
+    //   allow read: if isAuthenticated();
+    //   allow write: if false; 
+    // }
+  }
+}

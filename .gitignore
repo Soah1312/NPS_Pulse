@@ -30,7 +30,9 @@ migrate_working_dir/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
-/build/
+build/
+**/build/
+coverage/
 /coverage/
 
 # Symbolication related
@@ -47,3 +49,5 @@ app.*.map.json
 # Environment Variables
 .env
 .env.*
+**/.env
+**/.env.*
