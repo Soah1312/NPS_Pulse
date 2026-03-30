@@ -123,7 +123,7 @@ export default function LandingPage() {
   }, []);
 
   useEffect(() => {
-    document.title = "NPS Pulse | Your Retirement, Demystified";
+    document.title = "RetireSahi | Your Retirement, Demystified";
     const handleScroll = () => {
       setScrolled(window.scrollY > 20);
     };
@@ -267,9 +267,9 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
             <div className="w-10 h-10 bg-[#8B5CF6] border-2 border-[#1E293B] rounded-full flex items-center justify-center pop-shadow">
-              <span className="font-heading font-extrabold text-white text-xl">N</span>
+              <span className="font-heading font-extrabold text-white text-xl">R</span>
             </div>
-            <span className="font-heading font-extrabold text-2xl tracking-tight hidden sm:block">NPS Pulse</span>
+            <span className="font-heading font-extrabold text-2xl tracking-tight hidden sm:block">RetireSahi</span>
           </div>
           
           <div className="hidden md:flex gap-8 font-bold uppercase tracking-wide text-sm">
@@ -416,7 +416,7 @@ export default function LandingPage() {
               </h1>
               
               <p className="font-medium mb-10 text-[#1E293B]/80" style={{ fontSize: '1.125rem', lineHeight: 1.7, maxWidth: '600px' }}>
-                NPS Pulse calculates your personalized retirement readiness score, shows you exactly how much to contribute, and tells you how much tax you're leaving on the table — all in under 2 minutes.
+                RetireSahi calculates your personalized retirement readiness score, shows you exactly how much to contribute, and tells you how much tax you're leaving on the table — all in under 2 minutes.
               </p>
               
               <div className="flex flex-col sm:flex-row gap-6 mb-8">
@@ -565,9 +565,9 @@ export default function LandingPage() {
           <div className="flex flex-col md:flex-row justify-between items-center gap-10 mb-16">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-[#8B5CF6] border-2 border-white rounded-full flex items-center justify-center pop-shadow">
-                <span className="font-heading font-extrabold text-white text-2xl">N</span>
+                <span className="font-heading font-extrabold text-white text-2xl">R</span>
               </div>
-              <span className="font-heading font-extrabold text-3xl tracking-tight">NPS Pulse</span>
+              <span className="font-heading font-extrabold text-3xl tracking-tight">RetireSahi</span>
             </div>
             
             <div className="flex flex-wrap justify-center md:justify-end gap-8 font-bold uppercase tracking-wide text-sm">
@@ -580,7 +580,7 @@ export default function LandingPage() {
           </div>
           
           <div className="border-t border-white/20 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-white/50 font-bold uppercase tracking-widest text-xs">
-            <div>© 2025 NPS Pulse. Built for India's retirement future.</div>
+            <div>© 2025 RetireSahi. Built for India's retirement future.</div>
             <div className="flex items-center gap-2">
                Made with <Zap className="w-3" fill="currentColor" /> in India
             </div>

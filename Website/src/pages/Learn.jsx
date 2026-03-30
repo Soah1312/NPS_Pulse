@@ -107,7 +107,7 @@ export default function Learn() {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    document.title = "NPS Pulse | Know Your NPS";
+    document.title = "RetireSahi | Know Your NPS";
     const unsub = onAuthStateChanged(auth, setUser);
     const handleScroll = () => {
       setScrolled(window.scrollY > 20);
@@ -176,9 +176,9 @@ export default function Learn() {
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
             <div className="w-10 h-10 bg-[#8B5CF6] border-2 border-[#1E293B] rounded-full flex items-center justify-center pop-shadow">
-              <span className="font-heading font-extrabold text-white text-xl">N</span>
+              <span className="font-heading font-extrabold text-white text-xl">R</span>
             </div>
-            <span className="font-heading font-extrabold text-2xl tracking-tight hidden sm:block">NPS Pulse</span>
+            <span className="font-heading font-extrabold text-2xl tracking-tight hidden sm:block">RetireSahi</span>
           </div>
           
           <div className="hidden md:flex gap-8 font-bold uppercase tracking-wide text-sm items-center">
@@ -526,9 +526,9 @@ export default function Learn() {
          <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-10">
             <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
                <div className="w-10 h-10 bg-[#8B5CF6] border-2 border-white rounded-full flex items-center justify-center">
-                  <span className="font-heading font-extrabold text-white text-xl">N</span>
+                  <span className="font-heading font-extrabold text-white text-xl">R</span>
                </div>
-               <span className="font-heading font-extrabold text-2xl tracking-tight">NPS Pulse</span>
+               <span className="font-heading font-extrabold text-2xl tracking-tight">RetireSahi</span>
             </div>
             
             <div className="flex flex-wrap justify-center gap-8 font-bold uppercase tracking-widest text-xs">
@@ -539,7 +539,7 @@ export default function Learn() {
             </div>
 
             <div className="text-white/40 font-bold uppercase tracking-widest text-[9px]">
-               © 2025 NPS Pulse. Built for India's Future.
+               © 2025 RetireSahi. Built for India's Future.
             </div>
          </div>
       </footer>

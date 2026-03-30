@@ -62,7 +62,7 @@ export default function Methodology() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    document.title = "NPS Pulse | How We Calculate";
+    document.title = "RetireSahi | How We Calculate";
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
         const snap = await getDoc(doc(db, 'users', user.uid));
@@ -106,8 +106,8 @@ export default function Methodology() {
       {/* --- Sidebar (Same as Dashboard) --- */}
       <aside className="fixed left-0 top-0 h-full w-60 bg-[#1E293B] z-40 hidden lg:flex flex-col p-6 overflow-hidden">
          <div className="flex items-center gap-3 mb-12 cursor-pointer" onClick={() => navigate('/dashboard')}>
-            <div className="w-10 h-10 bg-[#8B5CF6] rounded-full border-2 border-white flex items-center justify-center font-heading font-extrabold text-white text-xl">N</div>
-            <span className="font-heading font-extrabold text-white text-xl uppercase tracking-widest">NPS Pulse</span>
+            <div className="w-10 h-10 bg-[#8B5CF6] rounded-full border-2 border-white flex items-center justify-center font-heading font-extrabold text-white text-xl">R</div>
+            <span className="font-heading font-extrabold text-white text-xl uppercase tracking-widest">RetireSahi</span>
          </div>
          <nav className="flex-1 space-y-4">
             {navItems.map(item => (
@@ -137,7 +137,7 @@ export default function Methodology() {
             
             <div className="space-y-4">
                <p className="font-bold text-[#1E293B]/60 leading-relaxed text-lg italic">
-                  "Every number in NPS Pulse is computed from real-world data and disclosed assumptions. No black boxes."
+                  "Every number in RetireSahi is computed from real-world data and disclosed assumptions. No black boxes."
                </p>
             </div>
 
@@ -297,9 +297,9 @@ export default function Methodology() {
                   <h3 className="font-heading font-black text-xl uppercase tracking-widest">Important Disclaimer</h3>
                </div>
                <div className="text-xs font-bold text-[#1E293B] leading-relaxed space-y-3 prose-strong:font-black">
-                  <p>NPS Pulse provides financial projections for <strong>educational and planning purposes only</strong>. We are not a SEBI-registered investment advisor or an IRDAI-licensed agent.</p>
+                  <p>RetireSahi provides financial projections for <strong>educational and planning purposes only</strong>. We are not a SEBI-registered investment advisor or an IRDAI-licensed agent.</p>
                   <p>All returns are based on historical data. <strong>Past performance does not guarantee future results.</strong> Tax laws are subject to change; verify with a qualified Chartered Accountant for your situation.</p>
-                  <p className="border-t border-[#1E293B]/10 pt-4 uppercase tracking-widest text-[9px] opacity-70">NPS Pulse is an independent project and is not affiliated with PFRDA or the NPS Trust.</p>
+                  <p className="border-t border-[#1E293B]/10 pt-4 uppercase tracking-widest text-[9px] opacity-70">RetireSahi is an independent project and is not affiliated with PFRDA or the NPS Trust.</p>
                </div>
             </div>
 

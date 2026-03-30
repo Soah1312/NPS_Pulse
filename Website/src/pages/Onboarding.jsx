@@ -131,7 +131,7 @@ export default function Onboarding() {
   const handleChange = (e) => setFormData({...formData, [e.target.name]: e.target.value});
 
   useEffect(() => {
-    document.title = "NPS Pulse | Onboarding";
+    document.title = "RetireSahi | Onboarding";
     if (step === 0) {
       const t = setTimeout(() => setStep(1), 1200);
       return () => clearTimeout(t);

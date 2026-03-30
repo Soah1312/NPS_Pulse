@@ -99,7 +99,7 @@ const ChatInterface = () => {
 
   useEffect(() => {
     if (userData) {
-      localStorage.setItem('nps_pulse_user_data', JSON.stringify(userData));
+      localStorage.setItem('retiresahi_user_data', JSON.stringify(userData));
     }
   }, [userData]);
 
@@ -126,7 +126,7 @@ const ChatInterface = () => {
     const scoreBand = displayData.score <= 30 ? 'Critical' : displayData.score <= 50 ? 'At Risk' : displayData.score <= 70 ? 'On Track' : displayData.score <= 85 ? 'Good' : 'Excellent';
 
     const systemPrompt = `
-      You are NPS Pulse AI — a friendly, knowledge-heavy financial advisor for Indians using NPS. 
+      You are RetireSahi AI — a friendly, knowledge-heavy financial advisor for Indians using NPS. 
       You are talking to ${displayData.firstName}.
       
       USER CONTEXT:

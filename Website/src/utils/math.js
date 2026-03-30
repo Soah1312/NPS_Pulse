@@ -1,4 +1,4 @@
-// NPS Pulse — Financial Math Engine (AY 2025-26 / Budget 2025 compliant)
+// RetireSahi — Financial Math Engine (AY 2025-26 / Budget 2025 compliant)
 
 export const SCHEME_E_RETURN = 0.1269; // Equity — 12.69% p.a.
 export const SCHEME_C_RETURN = 0.0887; // Corporate Bonds — 8.87% p.a.

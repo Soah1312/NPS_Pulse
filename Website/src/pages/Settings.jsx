@@ -106,7 +106,7 @@ const PageContent = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `nps-pulse-data-${userData.firstName}-${Date.now()}.json`;
+    a.download = `retiresahi-data-${userData.firstName}-${Date.now()}.json`;
     a.click();
     showToast("Data exported successfully!", 'emerald');
   };
@@ -226,7 +226,7 @@ const PageContent = () => {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Monthly NPS Pulse</label>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Monthly NPS Contribution</label>
                   <div className="relative">
                     <span className="absolute left-5 top-1/2 -translate-y-1/2 font-bold text-slate-300">₹</span>
                     <input 
@@ -473,7 +473,7 @@ const PageContent = () => {
       {/* Section 6: About */}
       <div className="text-center space-y-4 pt-8 border-t border-slate-100">
           <div className="flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-[3px] text-slate-300">
-            <Bot className="w-4 h-4" /> Developed by NPS Pulse Team
+            <Bot className="w-4 h-4" /> Developed by RetireSahi Team
           </div>
           <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
             <a href="#" className="hover:text-[#8B5CF6] transition-colors flex items-center gap-1">Methodology <ExternalLink className="w-3 h-3" /></a>

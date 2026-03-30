@@ -139,7 +139,7 @@ export default function Dashboard() {
 
   // State checks and Auth logic
   useEffect(() => {
-    document.title = "NPS Pulse | Dashboard";
+    document.title = "RetireSahi | Dashboard";
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
         const snap = await getDoc(doc(db, 'users', user.uid));
@@ -153,7 +153,7 @@ export default function Dashboard() {
             npsEquity: data.npsEquity || 50
           });
           // Auto-trigger tour on first visit
-          if (!localStorage.getItem('nps_pulse_tour_seen')) {
+          if (!localStorage.getItem('retiresahi_tour_seen')) {
             setTimeout(() => setTourActive(true), 800);
           }
         } else {
@@ -250,12 +250,12 @@ export default function Dashboard() {
   };
 
   const handleTourComplete = () => {
-    localStorage.setItem('nps_pulse_tour_seen', 'true');
+    localStorage.setItem('retiresahi_tour_seen', 'true');
     setTourActive(false);
   };
 
   const handleTourSkip = () => {
-    localStorage.setItem('nps_pulse_tour_seen', 'true');
+    localStorage.setItem('retiresahi_tour_seen', 'true');
     setTourActive(false);
   };
 
@@ -311,8 +311,8 @@ export default function Dashboard() {
       {/* --- Sidebar (Desktop) --- */}
       <aside className="fixed left-0 top-0 h-full w-60 bg-[#1E293B] z-40 hidden lg:flex flex-col p-6 overflow-hidden">
          <div className="flex items-center gap-3 mb-12">
-            <div className="w-10 h-10 bg-[#8B5CF6] rounded-full border-2 border-white flex items-center justify-center font-heading font-extrabold text-white text-xl">N</div>
-            <span className="font-heading font-extrabold text-white text-xl uppercase tracking-widest">NPS Pulse</span>
+            <div className="w-10 h-10 bg-[#8B5CF6] rounded-full border-2 border-white flex items-center justify-center font-heading font-extrabold text-white text-xl">R</div>
+            <span className="font-heading font-extrabold text-white text-xl uppercase tracking-widest">RetireSahi</span>
          </div>
 
          <nav className="flex-1 space-y-4">
@@ -402,8 +402,8 @@ export default function Dashboard() {
                <aside className="absolute top-0 left-0 h-full w-[280px] bg-[#1E293B] p-6 flex flex-col animate-slide-right">
                   <div className="flex items-center justify-between mb-10">
                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 bg-[#8B5CF6] rounded-full border-2 border-white flex items-center justify-center font-heading font-extrabold text-white">N</div>
-                        <span className="font-heading font-extrabold text-white tracking-widest">NPS Pulse</span>
+                        <div className="w-9 h-9 bg-[#8B5CF6] rounded-full border-2 border-white flex items-center justify-center font-heading font-extrabold text-white">R</div>
+                        <span className="font-heading font-extrabold text-white tracking-widest">RetireSahi</span>
                      </div>
                      <button onClick={() => setIsMenuOpen(false)} className="text-white/40 hover:text-white">
                         <X className="w-6 h-6" />
