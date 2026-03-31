@@ -6,7 +6,7 @@ import {
 import { auth, db } from '../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { getScoreInfo } from '../utils/math';
+import { getScoreBand, calculateRetirement } from '../utils/math';
 
 const UserContext = createContext();
 
@@ -71,8 +71,9 @@ export default function DashboardLayout({ children, title, userData: passedUserD
     );
   }
 
-  const score = userData?.score || 0;
-  const scoreInfo = getScoreInfo(score);
+  const freshResults = userData ? calculateRetirement(userData) : null;
+  const displayScore = freshResults?.score || 0;
+  const scoreInfo = getScoreBand(displayScore);
 
   return (
     <UserContext.Provider value={{ userData, setUserData }}>
@@ -159,7 +160,7 @@ export default function DashboardLayout({ children, title, userData: passedUserD
             <div className="flex items-center gap-2 md:gap-4 shrink-0">
               <div className={`flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 rounded-full border-2 border-[#1E293B] font-black uppercase tracking-widest text-[9px] md:text-[10px]`} style={{ backgroundColor: `${scoreInfo.color}22` }}>
                 <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full" style={{ backgroundColor: scoreInfo.color }} />
-                <span>{score} <span className="hidden xs:inline">{scoreInfo.label}</span></span>
+                <span>{displayScore} <span className="hidden xs:inline">{scoreInfo.label}</span></span>
               </div>
               <button className="p-1.5 md:p-2 text-[#1E293B]/60 hover:text-[#1E293B] relative">
                 <Bell className="w-5 h-5" />

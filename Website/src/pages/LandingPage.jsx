@@ -5,6 +5,7 @@ import { auth, db } from '../lib/firebase';
 import { isSignInWithEmailLink, signInWithEmailLink, onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
+import { getScoreBand } from '../utils/math';
 
 const COLORS = {
   bg: '#FFFDF5',
@@ -100,7 +101,7 @@ const ScoreArc = () => {
         </svg>
         <div className="text-center relative z-20 mt-4">
           <div className="font-heading font-extrabold text-[#1E293B] text-7xl leading-none">74</div>
-          <div className="font-bold text-[#8B5CF6] uppercase tracking-widest text-sm mt-2">On Track</div>
+          <div className={`font-bold uppercase tracking-widest text-sm mt-2`} style={{ color: getScoreBand(74).color }}>{getScoreBand(74).label}</div>
         </div>
         <div className="absolute bottom-10 bg-white border-2 border-[#1E293B] rounded-full px-4 py-1.5 text-xs font-bold uppercase tracking-wider flex items-center gap-2 shadow-[2px_2px_0_0_#1E293B] hover:-translate-y-1 hover:shadow-[4px_4px_0_0_#1E293B] transition-all cursor-pointer">
           <Activity className="w-3 h-3 text-[#34D399]" /> Readiness Score

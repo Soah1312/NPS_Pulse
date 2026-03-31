@@ -270,6 +270,8 @@ const PageContent = () => {
     return { label: 'Excellent', color: '#34D399' };
   };
 
+  const scoreDelta = simResults.score - baseResults.score;
+
   return (
     <div className="p-4 md:p-8 space-y-12 max-w-6xl mx-auto pb-32">
       {/* Lifestyle Selector */}
@@ -335,9 +337,11 @@ const PageContent = () => {
                       <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border border-[#1E293B]" style={{ backgroundColor: `${COLORS.violet}22`, color: COLORS.violet }}>
                         {selectedLifestyle}
                       </span>
-                      <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border border-[#1E293B] ${simResults.score >= baseResults.score ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
-                        {simResults.score >= baseResults.score ? '+' : ''}{simResults.score - baseResults.score} PTS
-                      </span>
+                      {scoreDelta !== 0 && (
+                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border border-[#1E293B] ${scoreDelta > 0 ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
+                          {scoreDelta > 0 ? `+${scoreDelta}` : scoreDelta} PTS
+                        </span>
+                      )}
                   </div>
                 </div>
               </div>
@@ -361,7 +365,15 @@ const PageContent = () => {
           <div className="hidden lg:block w-[300px] h-[300px] relative">
               <div className="absolute inset-0 bg-[#8B5CF6]/5 rounded-full border-2 border-dashed border-[#8B5CF6]/20 animate-spin-slow" />
               <div className="absolute inset-10 bg-white border-2 border-[#1E293B] rounded-[32px] pop-shadow flex items-center justify-center">
-                <TrendingUp className="w-20 h-20 text-[#8B5CF6]" strokeWidth={1.5} />
+                <div style={{ textAlign: 'center', padding: '16px' }}>
+                  <TrendingUp style={{ color: '#8B5CF6', width: 32, height: 32, margin: '0 auto' }} />
+                  <p style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.08em', marginTop: 8 }}>
+                    SCORE IMPACT
+                  </p>
+                  <p style={{ fontSize: '1.5rem', fontWeight: 800, color: scoreDelta > 0 ? '#34D399' : scoreDelta < 0 ? '#EF4444' : '#94A3B8', fontFamily: 'Outfit' }}>
+                    {scoreDelta > 0 ? `+${scoreDelta}` : scoreDelta === 0 ? '—' : scoreDelta} pts
+                  </p>
+                </div>
               </div>
           </div>
         </div>

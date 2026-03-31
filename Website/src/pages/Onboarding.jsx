@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowRight, ArrowLeft, Upload, Check, Loader2, Activity, Sparkles, IndianRupee, Zap } from 'lucide-react';
 import { db, auth } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
-import { calculateRetirement } from '../utils/math';
+import { calculateRetirement, getScoreBand } from '../utils/math';
 
 const COLORS = {
   bg: '#FFFDF5',
@@ -63,7 +63,7 @@ const FinalScoreArc = ({ score = 82 }) => {
         </svg>
         <div className="text-center relative z-20 mt-4">
           <div className="font-heading font-extrabold text-[#1E293B] text-7xl leading-none">{score}</div>
-          <div className="font-bold text-[#34D399] uppercase tracking-widest text-sm mt-2">On Track</div>
+          <div className={`font-bold uppercase tracking-widest text-sm mt-2`} style={{ color: getScoreBand(score).color }}>{getScoreBand(score).label}</div>
         </div>
       </div>
     </div>

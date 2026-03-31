@@ -14,7 +14,7 @@ import { TOUR_STEPS, DASHBOARD_TIPS } from '../constants/tooltips';
 import { 
   calculateRetirement, 
   getMilestoneAge, 
-  computeScenarioWithStepUp, 
+  computeWhatIfScenarios, 
   getMaxEquityPct, 
   SCHEME_E_RETURN, 
   SCHEME_C_RETURN, 
@@ -25,13 +25,13 @@ import {
   INFLATION_RATE,
   LIFESTYLE_MULTIPLIERS,
   COLORS,
-  getScoreInfo,
+  getScoreBand,
   formatIndian
 } from '../utils/math';
 
 // --- UI Components ---
 const ScoreArc = ({ score, assumptionsOpen, setAssumptionsOpen }) => {
-  const { label, color } = getScoreInfo(score);
+  const { label, color } = getScoreBand(score);
   const [offset, setOffset] = useState(283);
   
   useEffect(() => {
@@ -129,6 +129,7 @@ export default function Dashboard() {
   const [simulatorOpen, setSimulatorOpen] = useState(false);
   const [assumptionsOpen, setAssumptionsOpen] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [tourActive, setTourActive] = useState(false);
   const [simValues, setSimValues] = useState({
     npsContribution: 0,
@@ -174,55 +175,30 @@ export default function Dashboard() {
   const scenarios = useMemo(() => {
     if (!userData || !baseResults) return [];
     
-    const computeDelta = (overrides) => {
-       const results = calculateRetirement({ ...userData, ...overrides });
-       return results.score - baseResults.score;
-    };
-
+    // Determine dynamic values for overrides
     const nextLifestyle = userData.lifestyle === 'premium' ? 'comfortable' : userData.lifestyle === 'essential' ? 'comfortable' : 'essential';
     const currentContribution = Number(userData.npsContribution || 0);
-    const currentAge = Number(userData.age || 28);
     const currentRetireAge = Number(userData.retireAge || 60);
     const currentCorpus = Number(userData.npsCorpus || 0);
+    const currentAge = Number(userData.age || 28);
+    
+    const overridesMap = {
+      'contribute_more': { npsContribution: currentContribution + 2000 },
+      'step_up': { stepUp: 0.10 },
+      'retire_later': { retireAge: currentRetireAge + 2 },
+      'lifestyle_switch': { lifestyle: nextLifestyle },
+      'lump_sum': { npsCorpus: currentCorpus + 100000 },
+      'max_equity': { npsEquity: getMaxEquityPct(currentAge) }
+    };
 
-    return [
-      {
-        title: `Contribute ₹2,000 more/m`,
-        desc: "Increase short-term delta",
-        impact: computeDelta({ npsContribution: currentContribution + 2000 }),
-        overrides: { npsContribution: currentContribution + 2000 }
-      },
-      {
-        title: "Enable 10% annual step-up",
-        desc: "Grow with your salary hikes",
-        impact: computeScenarioWithStepUp(userData) - baseResults.score,
-        overrides: { stepUp: 0.10 }
-      },
-      {
-        title: "Retire 2 years later",
-        desc: "Power of compounding time",
-        impact: computeDelta({ retireAge: currentRetireAge + 2 }),
-        overrides: { retireAge: currentRetireAge + 2 }
-      },
-      {
-        title: `Switch to ${nextLifestyle[0].toUpperCase() + nextLifestyle.slice(1)}`,
-        desc: "Adjust standard of living",
-        impact: computeDelta({ lifestyle: nextLifestyle }),
-        overrides: { lifestyle: nextLifestyle }
-      },
-      {
-        title: "Add ₹1L lump sum today",
-        desc: "Immediate corpus injection",
-        impact: computeDelta({ npsCorpus: currentCorpus + 100000 }),
-        overrides: { npsCorpus: currentCorpus + 100000 }
-      },
-      {
-        title: "Increase Equity to Max",
-        desc: `PFRDA cap: ${getMaxEquityPct(currentAge)}%`,
-        impact: computeDelta({ npsEquity: getMaxEquityPct(currentAge) }),
-        overrides: { npsEquity: getMaxEquityPct(currentAge) }
-      }
-    ];
+    const generated = computeWhatIfScenarios(userData);
+    
+    return generated.map(s => ({
+      ...s,
+      impact: s.delta,
+      desc: s.description,
+      overrides: overridesMap[s.id] || {}
+    }));
   }, [userData, baseResults]);
 
   // Simulated results linked to bottom panel
@@ -236,13 +212,17 @@ export default function Dashboard() {
 
   // Dynamic Milestones
   const dynamicMilestones = useMemo(() => {
-    if (!userData) return [];
+    if (!userData || !baseResults) return [];
     const targets = [1000000, 2500000, 5000000, 10000000, 50000000, 100000000];
+    const corpus = (parseFloat(userData.npsCorpus) || 0) + (parseFloat(userData.totalSavings) || 0);
+    const pmt = parseFloat(userData.npsContribution) || 0;
+    const currentAge = parseInt(userData.age) || 28;
+    
     return targets.map(target => ({
        target,
-       ...getMilestoneAge(target, userData)
+       ...getMilestoneAge(target, currentAge, corpus, pmt, baseResults.blendedReturn)
     }));
-  }, [userData]);
+  }, [userData, baseResults]);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -317,45 +297,54 @@ export default function Dashboard() {
       `}</style>
 
       {/* --- Sidebar (Desktop) --- */}
-      <aside className="fixed left-0 top-0 h-full w-60 bg-[#1E293B] z-40 hidden lg:flex flex-col p-6 overflow-hidden">
+      <aside className={`fixed left-0 top-0 h-full bg-[#1E293B] z-40 hidden lg:flex flex-col overflow-hidden transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'w-24 p-4 items-center' : 'w-60 p-6'}`}>
          <div className="flex items-center gap-3 mb-12">
-            <div className="w-10 h-10 bg-[#8B5CF6] rounded-full border-2 border-white flex items-center justify-center font-heading font-extrabold text-white text-xl">R</div>
-            <span className="font-heading font-extrabold text-white text-xl uppercase tracking-widest">RetireSahi</span>
+            <div className="w-10 h-10 shrink-0 bg-[#8B5CF6] rounded-full border-2 border-white flex items-center justify-center font-heading font-extrabold text-white text-xl">R</div>
+            {!isSidebarCollapsed && <span className="font-heading font-extrabold text-white text-xl uppercase tracking-widest whitespace-nowrap animate-fade-in">RetireSahi</span>}
          </div>
 
-         <nav className="flex-1 space-y-4">
+         <nav className="flex-1 space-y-4 w-full">
             {navItems.map(item => (
               <button 
                 key={item.label}
+                title={isSidebarCollapsed ? item.label : undefined}
                 onClick={() => navigate(item.path)}
-                className={`w-full flex items-center gap-4 py-3 px-4 font-bold transition-all ${item.active ? 'sidebar-item-active' : 'text-white/70 hover:bg-white/10 rounded-full'}`}
+                className={`w-full flex items-center py-3 font-bold transition-all ${item.active ? 'sidebar-item-active' : 'text-white/70 hover:bg-white/10 rounded-full'} ${isSidebarCollapsed ? 'justify-center px-0' : 'px-4 gap-4'}`}
               >
-                <item.icon className="w-5 h-5" strokeWidth={2.5} />
-                <span>{item.label}</span>
+                <item.icon className="w-5 h-5 shrink-0" strokeWidth={2.5} />
+                {!isSidebarCollapsed && <span className="whitespace-nowrap animate-fade-in">{item.label}</span>}
               </button>
             ))}
          </nav>
 
-         <div className="pt-8 border-t border-white/10 mt-auto space-y-4">
+         <div className="pt-8 border-t border-white/10 mt-auto space-y-4 w-full">
              <button
                onClick={handleStartTour}
-               className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-full border border-white/10 text-white/50 hover:text-white hover:bg-white/5 transition-all text-[10px] font-black uppercase tracking-widest"
+               title={isSidebarCollapsed ? "Take the Tour" : undefined}
+               className={`w-full flex items-center justify-center py-2.5 rounded-full border border-white/10 text-white/50 hover:text-white hover:bg-white/5 transition-all text-[10px] font-black uppercase tracking-widest ${isSidebarCollapsed ? 'px-0' : 'px-4 gap-2'}`}
              >
-               <HelpCircle className="w-4 h-4" /> Take the Tour
+               <HelpCircle className="w-4 h-4 shrink-0" /> 
+               {!isSidebarCollapsed && <span className="whitespace-nowrap animate-fade-in">Take the Tour</span>}
              </button>
-             <div className="flex items-center gap-3 p-2 bg-white/5 rounded-2xl">
+             <div className={`flex items-center p-2 bg-white/5 rounded-2xl ${isSidebarCollapsed ? 'flex-col gap-3 justify-center' : 'gap-3'}`}>
                 {auth.currentUser?.photoURL ? (
-                  <img src={auth.currentUser.photoURL} alt="User" referrerPolicy="no-referrer" className="w-10 h-10 rounded-full border-2 border-[#8B5CF6]" />
+                  <img src={auth.currentUser.photoURL} alt="User" referrerPolicy="no-referrer" className="w-10 h-10 shrink-0 rounded-full border-2 border-[#8B5CF6]" />
                 ) : (
-                  <div className="w-10 h-10 rounded-full bg-[#8B5CF6] border-2 border-white flex items-center justify-center font-bold text-white uppercase text-lg">
+                  <div className="w-10 h-10 shrink-0 rounded-full bg-[#8B5CF6] border-2 border-white flex items-center justify-center font-bold text-white uppercase text-lg">
                     {userData?.firstName?.[0] || 'U'}
                   </div>
                 )}
-                <div className="flex flex-col">
-                   <span className="text-white font-bold text-sm tracking-wide">{userData?.firstName || 'User'}</span>
-                   <button className="text-[10px] text-white/50 uppercase tracking-widest font-black hover:text-[#F472B6]">Edit Profile</button>
-                </div>
-                <button onClick={handleLogout} className="ml-auto p-2 text-white/30 hover:text-white transition-colors">
+                {!isSidebarCollapsed && (
+                  <div className="flex flex-col min-w-0 pr-2">
+                     <span className="text-white font-bold text-sm tracking-wide truncate">{userData?.firstName || 'User'}</span>
+                     <button className="text-[10px] text-white/50 uppercase tracking-widest font-black hover:text-[#F472B6] text-left">Edit Profile</button>
+                  </div>
+                )}
+                <button 
+                   onClick={handleLogout} 
+                   title={isSidebarCollapsed ? "Log Out" : undefined}
+                   className={`p-2 text-white/30 hover:text-white transition-colors shrink-0 ${!isSidebarCollapsed ? 'ml-auto' : ''}`}
+                >
                    <LogOut className="w-4 h-4" />
                 </button>
              </div>
@@ -377,7 +366,7 @@ export default function Dashboard() {
       </nav>
 
       {/* --- Main Content area --- */}
-      <main className="lg:ml-60 min-h-screen flex flex-col relative pb-20 lg:pb-0">
+      <main className={`min-h-screen flex flex-col relative pb-20 lg:pb-0 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'lg:ml-24' : 'lg:ml-60'}`}>
          <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.05]" style={{ backgroundImage: 'radial-gradient(#1E293B 1px, transparent 1px)', backgroundSize: '28px 28px' }} />
 
          {/* Top Bar */}
@@ -389,12 +378,18 @@ export default function Dashboard() {
                >
                   {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
                </button>
+               <button 
+                  onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                  className="hidden lg:flex p-2 -ml-2 text-[#1E293B] hover:bg-slate-50 rounded-lg transition-colors"
+               >
+                  <Menu className="w-6 h-6" />
+               </button>
                <h1 className="font-heading font-extrabold text-lg md:text-2xl text-[#1E293B] uppercase tracking-widest truncate">Dashboard</h1>
             </div>
             <div className="flex items-center gap-2 md:gap-4 shrink-0">
-               <div className={`flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 rounded-full border-2 border-[#1E293B] font-black uppercase tracking-widest text-[9px] md:text-[10px]`} style={{ backgroundColor: `${getScoreInfo(baseResults?.score).color}22` }}>
-                  <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full" style={{ backgroundColor: getScoreInfo(baseResults?.score).color }} />
-                  <span>{baseResults?.score} <span className="hidden xs:inline">{getScoreInfo(baseResults?.score).label}</span></span>
+               <div className={`flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 rounded-full border-2 border-[#1E293B] font-black uppercase tracking-widest text-[9px] md:text-[10px]`} style={{ backgroundColor: `${getScoreBand(baseResults?.score).color}22` }}>
+                  <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full" style={{ backgroundColor: getScoreBand(baseResults?.score).color }} />
+                  <span>{baseResults?.score} <span className="hidden xs:inline">{getScoreBand(baseResults?.score).label}</span></span>
                </div>
                <button className="p-1.5 md:p-2 text-[#1E293B]/60 hover:text-[#1E293B] relative">
                   <Bell className="w-5 h-5" />
@@ -529,6 +524,66 @@ export default function Dashboard() {
                           </div>
                         )}
                      </div>
+                  </div>
+               </div>
+            </section>
+
+            {/* Required Corpus - Horizontally Extended Full Width Card */}
+            <section className="mb-8 md:mb-10 w-full animate-slide-up" style={{ animationDelay: '0.1s' }}>
+               <div id="required-corpus-card" className="bg-white border-2 border-[#1E293B] rounded-[24px] p-6 md:p-8 pop-shadow hover:-translate-y-1 transition-all cubic flex flex-col xl:flex-row xl:items-center justify-between gap-6 md:gap-8 group">
+                  {/* Title & Amount Sector */}
+                  <div className="flex justify-between items-center xl:w-[30%] shrink-0">
+                     <div>
+                       <div className="text-[10px] md:text-sm font-bold uppercase tracking-[2px] text-[#1E293B]/40 mb-1 flex items-center gap-1">
+                          REQUIRED CORPUS <InfoTooltip text={`Total savings needed at age ${userData?.retireAge || 60} to fund your ${userData?.lifestyle || 'comfortable'} lifestyle for life. Uses 3.5% Safe Withdrawal Rate adjusted for Indian inflation.`} />
+                       </div>
+                       <div className="font-heading font-extrabold text-3xl md:text-3xl text-[#1E293B]">{formatIndian(baseResults?.requiredCorpus)}</div>
+                       <div className="text-[10px] font-bold text-[#1E293B]/60 uppercase tracking-widest mt-1">Target by age {userData?.retireAge || 60}</div>
+                     </div>
+                     <div className="w-12 h-12 md:w-16 md:h-16 rounded-full flex items-center justify-center border-2 border-[#1E293B] shadow-[2px_2px_0_0_#1E293B] bg-[#3B82F6]/20 shrink-0">
+                        <Target className="w-6 h-6 md:w-8 md:h-8 text-[#3B82F6]" strokeWidth={2.5} />
+                     </div>
+                  </div>
+
+                  {/* Progress Bar Sector */}
+                  <div className="flex-1 min-w-[300px] flex flex-col justify-center">
+                    <div className="text-[10px] md:text-xs font-bold text-[#1E293B] uppercase tracking-widest flex justify-between">
+                      <span>Gap: {formatIndian(baseResults?.gap)}</span>
+                      <span>{Math.round(((baseResults?.gap || 0) / (baseResults?.requiredCorpus || 1)) * 100)}% remaining</span>
+                    </div>
+                    <div style={{ background: '#E2E8F0', borderRadius: 9999, height: 10, marginTop: 12 }}>
+                      <div style={{
+                        width: `${Math.min(100, Math.round(((baseResults?.projectedValue || 0) / (baseResults?.requiredCorpus || 1)) * 100))}%`,
+                        height: '100%',
+                        background: baseResults?.score >= 70 ? '#34D399' : baseResults?.score >= 50 ? '#F97316' : '#EF4444',
+                        borderRadius: 9999,
+                        transition: 'width 1.5s cubic-bezier(0.34, 1.56, 0.64, 1)'
+                      }} />
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#1E293B', marginTop: 8, fontWeight: '900', textTransform: 'uppercase' }}>
+                      {Math.min(100, Math.round(((baseResults?.projectedValue || 0) / (baseResults?.requiredCorpus || 1)) * 100))}% funded
+                    </div>
+                  </div>
+
+                  {/* Stat Pills Sector */}
+                  <div className="flex gap-4 xl:w-[35%] shrink-0">
+                    <div className="flex-1 bg-[#F1F5F9] border-2 border-[#1E293B] rounded-[16px] p-3 md:p-4 flex flex-col items-center justify-center shadow-[3px_3px_0_0_#1E293B]">
+                      <span className="text-[9px] md:text-[10px] font-black uppercase tracking-[2px] text-[#1E293B]/50 text-center mb-1">
+                        LUMP SUM AT {userData?.retireAge || 60}
+                      </span>
+                      <span className="text-sm md:text-xl font-black text-[#1E293B] font-heading">
+                        {formatIndian(baseResults?.lumpSumCorpus)}
+                      </span>
+                    </div>
+
+                    <div className="flex-1 bg-[#F1F5F9] border-2 border-[#1E293B] rounded-[16px] p-3 md:p-4 flex flex-col items-center justify-center shadow-[3px_3px_0_0_#1E293B]">
+                      <span className="text-[9px] md:text-[10px] font-black uppercase tracking-[2px] text-[#1E293B]/50 text-center mb-1">
+                        MONTHLY PENSION
+                      </span>
+                      <span className="text-sm md:text-xl font-black text-[#8B5CF6] font-heading">
+                        {formatIndian(baseResults?.monthlyAnnuityIncome)}/m
+                      </span>
+                    </div>
                   </div>
                </div>
             </section>

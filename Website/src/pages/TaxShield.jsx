@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Shield, Zap, TrendingUp, Info, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react';
-import { computeTax, NEW_REGIME_SLABS, OLD_REGIME_SLABS } from '../utils/math';
+import { computeTaxSavings, computeTax, NEW_REGIME_SLABS, OLD_REGIME_SLABS } from '../utils/math';
 import DashboardLayout, { useUser } from '../components/DashboardLayout';
 import InfoTooltip from '../components/InfoTooltip';
 import { TAX_SHIELD_TIPS } from '../constants/tooltips';
@@ -27,32 +27,40 @@ const PageContent = () => {
 
   useEffect(() => {
     if (userData) {
-      if (userData.workContext === 'Government' || userData.workContext === 'Private Sector') {
-         const basic = userData.monthlyIncome * 12 * 0.40;
-         setInvestments(prev => ({ ...prev, employerNPS: Math.round(basic * 0.10) }));
-      }
+      const savingsInfo = computeTaxSavings(userData);
+      setInvestments(prev => ({ ...prev, employerNPS: Math.round(savingsInfo.ccd2?.potential || 0) }));
     }
   }, [userData]);
 
   const taxAnalysis = useMemo(() => {
     if (!userData) return null;
-    const annualIncome = userData.monthlyIncome * 12;
+    const taxData = computeTaxSavings(userData);
+    const annualIncome = (parseFloat(userData.monthlyIncome) || 0) * 12;
 
-    const currentTaxNew = computeTax(annualIncome, 'new', investments.employerNPS); 
+    const newRegimeTax = computeTax(annualIncome, 'new', 0);
+    const oldRegimeTax = computeTax(annualIncome, 'old', Math.min(150000, investments.extra80C) + taxData.ccd1.used + investments.nps80CCD1B + investments.employerNPS);
+    const taxDifference = oldRegimeTax - newRegimeTax;
+
+    let headline = '';
+    let savings = 0;
     
-    const oldDeductions = Math.min(150000, investments.extra80C) + investments.nps80CCD1B + investments.employerNPS;
-    const currentTaxOld = computeTax(annualIncome, 'old', oldDeductions);
-
-    const optDeductions = 150000 + 50000 + investments.employerNPS;
-    const optTaxOld = computeTax(annualIncome, 'old', optDeductions);
+    if (taxDifference > 0) {
+      savings = taxDifference;
+      headline = `NEW REGIME SAVES YOU ${formatIndian(taxDifference)} VS OLD REGIME`;
+    } else if (taxDifference < 0) {
+      savings = Math.abs(taxDifference);
+      headline = `OLD REGIME SAVES YOU ${formatIndian(Math.abs(taxDifference))} VS NEW REGIME`;
+    } else {
+      headline = `BOTH REGIMES RESULT IN SAME TAX FOR YOU`;
+    }
 
     return {
       annualIncome,
-      newRegime: { tax: currentTaxNew, slabs: NEW_REGIME_SLABS },
-      oldRegime: { tax: currentTaxOld, slabs: OLD_REGIME_SLABS },
-      optimizedOld: optTaxOld,
-      bestRegime: currentTaxNew < currentTaxOld ? 'new' : 'old',
-      savings: Math.abs(currentTaxNew - currentTaxOld)
+      headline,
+      savings,
+      newRegime: { tax: newRegimeTax, slabs: NEW_REGIME_SLABS },
+      oldRegime: { tax: oldRegimeTax, slabs: OLD_REGIME_SLABS },
+      bestRegime: newRegimeTax < oldRegimeTax ? 'new' : 'old'
     };
   }, [userData, investments]);
 
@@ -68,12 +76,24 @@ const PageContent = () => {
                    <Zap className="text-[#FBBF24]" fill="currentColor" />
                    <span className="font-black uppercase tracking-[3px] text-xs opacity-70">Tax Intelligence</span>
                 </div>
-                <h2 className="font-heading font-black text-3xl md:text-5xl lg:text-5xl leading-tight mb-6 uppercase tracking-tight">
-                   You save <span className="text-[#34D399] tracking-normal">{formatIndian(taxAnalysis.savings)}</span> in the {taxAnalysis.bestRegime} Regime.
-                </h2>
-                <p className="text-white/60 font-bold text-sm md:text-base max-w-lg leading-relaxed">
-                   Based on your annual gross income of <span className="text-white">{formatIndian(taxAnalysis.annualIncome)}</span> and current NPS contributions.
-                </p>
+                 {taxAnalysis.savings === 0 ? (
+                    <div>
+                      <span className="bg-[#34D399] border-2 border-[#1E293B] rounded-full px-3 py-1 font-black uppercase text-[10px] tracking-widest inline-block mb-4 text-[#1E293B] shadow-[2px_2px_0_0_#1E293B]">✦ TAX OPTIMIZED</span>
+                      <h1 className="font-heading font-black text-3xl md:text-5xl lg:text-5xl leading-tight mb-6 uppercase tracking-tight">You're Already in the Sweet Spot.</h1>
+                      <p className="font-bold text-sm md:text-base max-w-lg leading-relaxed text-white/60">
+                         Your income falls within the zero-tax zone for both regimes. You owe <span className="text-white">₹0</span> in taxes — focus your energy on growing your NPS corpus instead.
+                      </p>
+                    </div>
+                 ) : (
+                    <>
+                      <h2 className="font-heading font-black text-3xl md:text-5xl lg:text-5xl leading-tight mb-6 uppercase tracking-tight">
+                         {taxAnalysis.headline}
+                      </h2>
+                      <p className="text-white/60 font-bold text-sm md:text-base max-w-lg leading-relaxed">
+                         Based on your annual gross income of <span className="text-white">{formatIndian(taxAnalysis.annualIncome)}</span> and current NPS contributions.
+                      </p>
+                    </>
+                 )}
              </div>
              
              <div className="mt-12 flex flex-wrap gap-4 relative z-10">

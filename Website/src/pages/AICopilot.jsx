@@ -9,7 +9,8 @@ import {
   calculateRetirement,
   INFLATION_RATE,
   SCHEME_E_RETURN,
-  ANNUITY_RATE
+  ANNUITY_RATE,
+  getScoreBand
 } from '../utils/math';
 import { getSystemPrompt } from '../utils/aiPrompt';
 import DashboardLayout, { useUser } from '../components/DashboardLayout';
@@ -130,17 +131,17 @@ const ChatInterface = () => {
   if (!userData) return null;
 
   const displayData = userData
-    ? (userData.score !== undefined ? userData : { ...userData, ...calculateRetirement(userData) })
+    ? { ...userData, ...calculateRetirement(userData) }
     : null;
 
   // Ensure annuity fields exist for system prompt
-  if (!displayData.lumpSumCorpus) {
+  if (displayData && !displayData.lumpSumCorpus) {
     displayData.lumpSumCorpus = displayData.projectedValue * 0.6;
   }
-  if (!displayData.monthlyAnnuityIncome) {
+  if (displayData && !displayData.monthlyAnnuityIncome) {
     displayData.monthlyAnnuityIncome = (displayData.projectedValue * 0.4 * 0.06) / 12;
   }
-  if (!displayData.blendedReturn) {
+  if (displayData && !displayData.blendedReturn) {
     const eq = (displayData.npsEquity || 50) / 100;
     displayData.blendedReturn = (eq * 0.1269) + ((1 - eq) / 2 * 0.0887) + ((1 - eq) / 2 * 0.0874);
   }
@@ -169,11 +170,8 @@ const ChatInterface = () => {
     setIsLoading(true);
     setError(null);
 
-    const scoreBand =
-      displayData.score <= 30 ? 'Critical' :
-        displayData.score <= 50 ? 'At Risk' :
-          displayData.score <= 70 ? 'On Track' :
-            displayData.score <= 85 ? 'Good' : 'Excellent';
+    const scoreBandInfo = getScoreBand(displayData.score);
+    const scoreBand = scoreBandInfo.label;
 
     const maxEquityPct = displayData.age < 50
       ? 75
