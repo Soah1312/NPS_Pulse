@@ -15,6 +15,7 @@ export default function DashboardLayout({ children, title, userData: passedUserD
   const location = useLocation();
   const [fetchedUserData, setFetchedUserData] = useState(null);
   const [loading, setLoading] = useState(!passedUserData);
+  const [loadError, setLoadError] = useState(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const userData = passedUserData || fetchedUserData;
@@ -26,18 +27,25 @@ export default function DashboardLayout({ children, title, userData: passedUserD
     }
 
     const unsub = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        const snap = await getDoc(doc(db, 'users', user.uid));
-        if (snap.exists()) {
-          const decrypted = await decryptUserData(snap.data(), user.uid);
-          setFetchedUserData(decrypted);
+      try {
+        if (user) {
+          const snap = await getDoc(doc(db, 'users', user.uid));
+          if (snap.exists()) {
+            const decrypted = await decryptUserData(snap.data(), user.uid);
+            setFetchedUserData(decrypted);
+            setLoadError(null);
+          } else {
+            navigate('/onboarding');
+          }
         } else {
-          navigate('/onboarding');
+          navigate('/');
         }
-      } else {
-        navigate('/');
+      } catch (err) {
+        console.error('Failed to load dashboard profile:', err);
+        setLoadError(err?.message || 'Unable to load your profile right now.');
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     });
     return () => unsub();
   }, [navigate, passedUserData]);
@@ -62,6 +70,23 @@ export default function DashboardLayout({ children, title, userData: passedUserD
         <div className="animate-pulse flex flex-col items-center">
           <div className="w-16 h-16 bg-[#8B5CF6]/20 rounded-full mb-4" />
           <div className="h-4 w-32 bg-slate-200 rounded" />
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#FFFDF5] p-6">
+        <div className="max-w-md w-full bg-white border-4 border-[#1E293B] rounded-2xl p-6 pop-shadow-pink space-y-4">
+          <h2 className="font-heading font-black text-xl uppercase tracking-widest text-[#1E293B]">Dashboard Unavailable</h2>
+          <p className="text-sm font-bold text-[#1E293B]/70 leading-relaxed">{loadError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-5 py-2 bg-[#8B5CF6] text-white rounded-full font-black uppercase tracking-widest text-xs pop-shadow"
+          >
+            Retry
+          </button>
         </div>
       </div>
     );

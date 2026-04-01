@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -18,7 +18,12 @@ let app, auth, db, googleProvider;
 if (firebaseConfig.apiKey && firebaseConfig.apiKey !== "AIzaSyYourApiKeyHere...") {
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
-  db = getFirestore(app);
+  // Auto-detect long polling for environments where WebChannel/WebSocket is blocked.
+  // This commonly fixes deployed-only "client is offline" Firestore errors.
+  db = initializeFirestore(app, {
+    experimentalAutoDetectLongPolling: true,
+    useFetchStreams: false,
+  });
   googleProvider = new GoogleAuthProvider();
 }
 
