@@ -91,6 +91,21 @@ const PageContent = () => {
         npsEquity: parseFloat(formData.npsEquity) || 50,
       };
 
+      if (parsedData.monthlyIncome <= 0) {
+        showToast('Monthly income must be a positive number.', 'red');
+        return;
+      }
+
+      if (parsedData.npsContribution < 0) {
+        showToast('NPS contribution cannot be negative.', 'red');
+        return;
+      }
+
+      if (parsedData.npsContribution > parsedData.monthlyIncome) {
+        showToast('NPS contribution cannot exceed monthly income.', 'red');
+        return;
+      }
+
       const newResults = calculateRetirement(parsedData);
       const updatedData = { 
         ...parsedData, 

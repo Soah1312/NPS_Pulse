@@ -17,6 +17,7 @@ const COLORS = {
 
 const MIN_AGE = 18;
 const MAX_RETIRE_AGE = 75;
+const MIN_MONTHLY_INCOME = 1000;
 const MAX_MONTHLY_INCOME = 100000000; // 10 Cr
 const MAX_NPS_CONTRIBUTION = 100000000; // 10 Cr
 const MAX_NPS_CORPUS = 1000000000; // 100 Cr
@@ -196,6 +197,8 @@ export default function Onboarding() {
 
     if (!(monthlyIncome > 0)) {
       nextErrors.monthlyIncome = 'Monthly income must be a positive number';
+    } else if (monthlyIncome < MIN_MONTHLY_INCOME) {
+      nextErrors.monthlyIncome = `Monthly income must be at least ₹${MIN_MONTHLY_INCOME.toLocaleString('en-IN')}`;
     } else if (monthlyIncome >= MAX_MONTHLY_INCOME) {
       nextErrors.monthlyIncome = 'Monthly income must be less than ₹10 Cr';
     }
@@ -220,6 +223,8 @@ export default function Onboarding() {
 
     if (!(contribution > 0)) {
       nextErrors.npsContribution = 'NPS contribution must be a positive number';
+    } else if (contribution > parsed.monthlyIncome) {
+      nextErrors.npsContribution = 'NPS contribution cannot exceed monthly income';
     } else if (contribution >= MAX_NPS_CONTRIBUTION) {
       nextErrors.npsContribution = 'NPS contribution is too large (sanity cap exceeded)';
     }

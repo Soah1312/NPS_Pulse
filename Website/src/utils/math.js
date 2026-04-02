@@ -17,6 +17,7 @@ export const ANNUITY_SPLIT   = 0.40     // 40% must be annuitized (PFRDA mandate
 export const ANNUITY_PCT    = 0.40     // Alias for compatibility
 export const LUMP_SUM_SPLIT  = 0.60     // 60% available as lump sum
 export const LUMP_SUM_PCT  = 0.60     // Alias for compatibility
+export const MIN_MODEL_MONTHLY_INCOME = 10000 // Keep readiness realistic for legacy low-income edge cases
 
 // ── COLORS ─────────────────────────────────
 export const COLORS = {
@@ -136,10 +137,11 @@ export function calculateRetirement(data) {
   const years       = Math.max(1, retireAge - age)
   const n           = years * 12   // total months
 
-  const monthlyIncome      = parseFloat(data.monthlyIncome) || 0
-  const monthlyContrib     = parseFloat(data.npsContribution) || 0
-  const npsCorpus          = parseFloat(data.npsCorpus) || 0
-  const otherSavings       = data.addSavings ? (parseFloat(data.totalSavings) || 0) : 0
+  const monthlyIncome      = Math.max(0, parseFloat(data.monthlyIncome) || 0)
+  const monthlyContribRaw  = Math.max(0, parseFloat(data.npsContribution) || 0)
+  const monthlyContrib     = Math.min(Math.max(0, monthlyContribRaw), Math.max(0, monthlyIncome))
+  const npsCorpus          = Math.max(0, parseFloat(data.npsCorpus) || 0)
+  const otherSavings       = data.addSavings ? Math.max(0, parseFloat(data.totalSavings) || 0) : 0
   const totalCorpus        = npsCorpus + otherSavings
   const equityPct          = parseFloat(data.npsEquity) || 50
   const lifestyle          = (data.lifestyle || 'comfortable').toLowerCase()
@@ -157,29 +159,23 @@ export function calculateRetirement(data) {
     : 0
   const projectedValue = fvCorpus + fvContributions
 
-  console.log('totalCorpus:', totalCorpus)        // expected: 170000
-  console.log('annualReturn:', annualReturn)        // expected: 0.1172
-  console.log('r:', r)                             // expected: 0.009767
-  console.log('n:', n)                             // expected: 336
-  console.log('(1+r)^n:', Math.pow(1+r, n))        // expected: ~26.19
-  console.log('fvCorpus:', fvCorpus)               // expected: ~4452000
-  console.log('fvContributions:', fvContributions) // expected: ~12898000
-  console.log('projectedValue:', projectedValue)   // expected: ~17350000
-
   // ── REQUIRED CORPUS ──
   const lifestyleMultiplier = LIFESTYLE_MULTIPLIERS[lifestyle] || 0.60
+  const modeledMonthlyIncome = Math.max(monthlyIncome, MIN_MODEL_MONTHLY_INCOME)
   // Inflation-adjusted monthly spend at retirement
   const monthlySpendAtRetirement =
-    monthlyIncome * lifestyleMultiplier * Math.pow(1 + INFLATION_RATE, years)
+    modeledMonthlyIncome * lifestyleMultiplier * Math.pow(1 + INFLATION_RATE, years)
   // Required corpus using SWR (on lump sum portion only)
   // Since 40% is annuitized, we need the lump sum (60%) to cover
   // (monthly spend - annuity income) via SWR
   // But we solve for total corpus first, then split
   const annualSpend = monthlySpendAtRetirement * 12
-  const requiredCorpus = annualSpend / SWR
+  const requiredCorpus = annualSpend > 0 ? annualSpend / SWR : 0
 
   // ── SCORE ──
-  const score = Math.min(100, Math.round((projectedValue / requiredCorpus) * 100))
+  const readinessRatio = requiredCorpus > 0 ? (projectedValue / requiredCorpus) : 0
+  const uncappedScore = Number.isFinite(readinessRatio) ? readinessRatio * 100 : 0
+  const score = Math.max(0, Math.min(100, Math.floor(uncappedScore)))
 
   // ── GAP & MONTHLY CLOSER ──
   const gap = Math.max(0, requiredCorpus - projectedValue)
@@ -207,6 +203,8 @@ export function calculateRetirement(data) {
     gap,
     monthlyGap,
     monthlySpendAtRetirement,
+    readinessRatio,
+    uncappedScore,
 
     // Annuity
     annuityCorpus,
