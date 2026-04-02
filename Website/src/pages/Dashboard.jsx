@@ -16,6 +16,8 @@ import {
   calculateRetirement, 
   getMilestoneAge, 
   computeWhatIfScenarios, 
+   computeTaxSavings,
+   computeTax,
   getMaxEquityPct, 
   SCHEME_E_RETURN, 
   SCHEME_C_RETURN, 
@@ -211,6 +213,46 @@ export default function Dashboard() {
     });
   }, [userData, simValues]);
 
+   const taxPosition = useMemo(() => {
+      if (!userData) {
+         return {
+            label: 'Tax Position Unknown',
+            detail: 'Add profile details to calculate tax position',
+            color: '#94A3B8',
+            bg: '#F1F5F9',
+         };
+      }
+
+      const taxData = computeTaxSavings(userData);
+      const annualIncome = (parseFloat(userData.monthlyIncome) || 0) * 12;
+      const employerNPS = Math.round(taxData.ccd2?.potential || 0);
+      const newRegimeTax = computeTax(annualIncome, 'new', 0);
+      const oldRegimeTax = computeTax(
+         annualIncome,
+         'old',
+         taxData.ccd1.used + 50000 + employerNPS
+      );
+
+      const delta = Math.abs(oldRegimeTax - newRegimeTax);
+
+      if (delta === 0) {
+         return {
+            label: 'Tax Position Optimized',
+            detail: 'No immediate tax action needed',
+            color: '#059669',
+            bg: '#D1FAE5',
+         };
+      }
+
+      const betterRegime = newRegimeTax < oldRegimeTax ? 'New Regime' : 'Old Regime';
+      return {
+         label: 'Tax Opportunity Detected',
+         detail: `${betterRegime} can save ${formatIndian(delta)} per year`,
+         color: '#B45309',
+         bg: '#FEF3C7',
+      };
+   }, [userData]);
+
   // Dynamic Milestones
   const dynamicMilestones = useMemo(() => {
     if (!userData || !baseResults) return [];
@@ -391,6 +433,14 @@ export default function Dashboard() {
                <div className={`flex items-center gap-1.5 md:gap-2 px-3 md:px-4 py-1.5 rounded-full border-2 border-[#1E293B] font-black uppercase tracking-widest text-[9px] md:text-[10px]`} style={{ backgroundColor: `${getScoreBand(baseResults?.score).color}22` }}>
                   <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full" style={{ backgroundColor: getScoreBand(baseResults?.score).color }} />
                   <span>{baseResults?.score} <span className="hidden xs:inline">{getScoreBand(baseResults?.score).label}</span></span>
+               </div>
+               <div
+                 className="hidden md:flex items-center gap-2 px-3 md:px-4 py-1.5 rounded-full border-2 border-[#1E293B] font-black uppercase tracking-widest text-[9px] md:text-[10px]"
+                 style={{ backgroundColor: taxPosition.bg, color: taxPosition.color }}
+                 title={taxPosition.detail}
+               >
+                 <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full" style={{ backgroundColor: taxPosition.color }} />
+                 <span>{taxPosition.label}</span>
                </div>
                <button className="p-1.5 md:p-2 text-[#1E293B]/60 hover:text-[#1E293B] relative">
                   <Bell className="w-5 h-5" />

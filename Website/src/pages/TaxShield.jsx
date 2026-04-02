@@ -18,6 +18,7 @@ const formatIndian = (num) => {
 const PageContent = () => {
   const navigate = useNavigate();
   const { userData } = useUser();
+   const [showAdvanced, setShowAdvanced] = useState(false);
   
   // Custom states for what-if tax scenarios
   const [investments, setInvestments] = useState({
@@ -65,6 +66,9 @@ const PageContent = () => {
 
   if (!userData) return null;
 
+   const isOptimized = taxAnalysis.savings === 0;
+   const shouldShowAdvanced = !isOptimized || showAdvanced;
+
   return (
     <div className="p-4 md:p-8 space-y-12 max-w-6xl mx-auto pb-32">
        {/* 1. Hero Summary */}
@@ -75,12 +79,12 @@ const PageContent = () => {
                    <Zap className="text-[#FBBF24]" fill="currentColor" />
                    <span className="font-black uppercase tracking-[3px] text-xs opacity-70">Tax Intelligence</span>
                 </div>
-                 {taxAnalysis.savings === 0 ? (
+                 {isOptimized ? (
                     <div>
                       <span className="bg-[#34D399] border-2 border-[#1E293B] rounded-full px-3 py-1 font-black uppercase text-[10px] tracking-widest inline-block mb-4 text-[#1E293B] shadow-[2px_2px_0_0_#1E293B]">✦ TAX OPTIMIZED</span>
-                      <h1 className="font-heading font-black text-3xl md:text-5xl lg:text-5xl leading-tight mb-6 uppercase tracking-tight">You're Already in the Sweet Spot.</h1>
+                      <h1 className="font-heading font-black text-3xl md:text-5xl lg:text-5xl leading-tight mb-6 uppercase tracking-tight">Tax Position Optimized.</h1>
                       <p className="font-bold text-sm md:text-base max-w-lg leading-relaxed text-white/60">
-                         Your income falls within the zero-tax zone for both regimes. You owe <span className="text-white">₹0</span> in taxes — focus your energy on growing your NPS corpus instead.
+                         No immediate tax action needed with your current profile. You are already on the most efficient path for this year.
                       </p>
                     </div>
                  ) : (
@@ -147,8 +151,28 @@ const PageContent = () => {
           </div>
        </section>
 
+          {isOptimized && (
+             <section className="bg-white border-2 border-[#1E293B] rounded-[24px] p-6 md:p-8 pop-shadow">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                   <div>
+                      <h3 className="font-heading font-black text-xl md:text-2xl uppercase tracking-widest text-[#1E293B]">No Immediate Tax Action Needed</h3>
+                      <p className="text-sm font-bold text-[#1E293B]/60 mt-2 leading-relaxed">
+                         Keep this as a periodic check. Revisit after salary changes, bonus cycles, or employer contribution updates.
+                      </p>
+                   </div>
+                   <button
+                      onClick={() => setShowAdvanced((prev) => !prev)}
+                      className="px-6 py-3 border-2 border-[#1E293B] rounded-full font-black uppercase tracking-widest text-xs bg-[#FFFDF5] hover:bg-[#F1F5F9] transition-all"
+                   >
+                      {showAdvanced ? 'Hide Detailed Tax View' : 'Show Detailed Tax View'}
+                   </button>
+                </div>
+             </section>
+          )}
+
        {/* 2. Slab Visualization */}
-       <section className="space-y-8">
+          {shouldShowAdvanced && (
+          <section className="space-y-8">
           <div className="flex items-center gap-4">
              <h2 className="font-heading font-black text-3xl uppercase tracking-widest leading-none">Tax Slab Pulse</h2>
              <div className="flex-1 h-1 bg-[#1E293B] relative opacity-10"></div>
@@ -208,8 +232,10 @@ const PageContent = () => {
              </div>
           </div>
        </section>
+       )}
 
        {/* 3. Personalized Settings (What If) */}
+       {shouldShowAdvanced && (
        <section className="bg-white border-2 border-[#1E293B] rounded-[32px] p-8 lg:p-12 pop-shadow-lg relative overflow-hidden group">
           <div className="flex flex-col lg:flex-row gap-12 items-center">
              <div className="lg:w-1/3">
@@ -262,6 +288,7 @@ const PageContent = () => {
              </button>
           </div>
        </section>
+       )}
     </div>
   );
 };

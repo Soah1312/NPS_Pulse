@@ -265,6 +265,14 @@ const PageContent = () => {
 
   if (!userData) return null;
 
+  const baseScore = baseResults.scorePrecise ?? baseResults.score;
+  const simScore = simResults.scorePrecise ?? simResults.score;
+  const scoreDelta = Number((simScore - baseScore).toFixed(1));
+  const uncappedDelta = Number(((simResults.uncappedScore || 0) - (baseResults.uncappedScore || 0)).toFixed(1));
+  const cappedButMoved = baseScore === 100 && simScore === 100 && Math.abs(uncappedDelta) >= 0.1;
+
+  const formatScore = (value) => (Number.isInteger(value) ? String(value) : value.toFixed(1));
+
   const scoreInfo = (score) => {
     if (score <= 30) return { label: 'Critical', color: '#EF4444' };
     if (score <= 50) return { label: 'At Risk', color: '#F97316' };
@@ -272,8 +280,6 @@ const PageContent = () => {
     if (score <= 85) return { label: 'Good', color: '#8B5CF6' };
     return { label: 'Excellent', color: '#34D399' };
   };
-
-  const scoreDelta = simResults.score - baseResults.score;
 
   return (
     <div className="p-4 md:p-8 space-y-12 max-w-6xl mx-auto pb-32">
@@ -315,7 +321,7 @@ const PageContent = () => {
                 <div className="text-[10px] font-black text-[#1E293B]/40 uppercase tracking-[2px]">CURRENT</div>
                 <div className="flex flex-col items-center">
                   <div className="w-20 h-20 rounded-full border-4 border-slate-200 flex items-center justify-center font-heading font-black text-2xl text-slate-400 bg-slate-50">
-                    {baseResults.score}
+                    {formatScore(baseScore)}
                   </div>
                   <div className="mt-2 text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
                     {userData.lifestyle}
@@ -332,17 +338,19 @@ const PageContent = () => {
                 <div className="flex flex-col items-center">
                   <div 
                     className="w-24 h-24 rounded-full border-4 flex items-center justify-center font-heading font-black text-3xl transition-all duration-500 shadow-[6px_6px_0_0_rgba(0,0,0,0.05)]"
-                    style={{ borderColor: scoreInfo(simResults.score).color, color: scoreInfo(simResults.score).color }}
+                    style={{ borderColor: scoreInfo(simScore).color, color: scoreInfo(simScore).color }}
                   >
-                    {simResults.score}
+                    {formatScore(simScore)}
                   </div>
                   <div className="flex items-center gap-2 mt-2">
                       <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border border-[#1E293B]" style={{ backgroundColor: `${COLORS.violet}22`, color: COLORS.violet }}>
                         {selectedLifestyle}
                       </span>
-                      {scoreDelta !== 0 && (
+                      {(scoreDelta !== 0 || cappedButMoved) && (
                         <span className={`text-[9px] font-black px-2 py-0.5 rounded-full border border-[#1E293B] ${scoreDelta > 0 ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-600'}`}>
-                          {scoreDelta > 0 ? `+${scoreDelta}` : scoreDelta} PTS
+                          {scoreDelta !== 0
+                            ? `${scoreDelta > 0 ? '+' : ''}${formatScore(scoreDelta)} PTS`
+                            : `${uncappedDelta > 0 ? '+' : ''}${formatScore(uncappedDelta)} RAW`}
                         </span>
                       )}
                   </div>
@@ -351,14 +359,16 @@ const PageContent = () => {
             </div>
 
             <div className={`p-4 rounded-xl border-2 border-[#1E293B] font-bold text-xs uppercase tracking-widest flex items-center gap-3 ${
-              simResults.score > baseResults.score ? 'bg-[#D1FAE5] border-[#34D399] text-[#065F46]' : 
-              simResults.score < baseResults.score ? 'bg-[#FFFBEB] border-[#FBBF24] text-[#92400E]' : 
+              scoreDelta > 0 ? 'bg-[#D1FAE5] border-[#34D399] text-[#065F46]' : 
+              scoreDelta < 0 ? 'bg-[#FFFBEB] border-[#FBBF24] text-[#92400E]' : 
               'bg-white text-slate-500'
             }`}>
-              {simResults.score > baseResults.score ? (
+              {scoreDelta > 0 ? (
                 <> <CheckCircle2 className="w-5 h-5" /> This lifestyle improves your retirement outlook ✓ </>
-              ) : simResults.score < baseResults.score ? (
+              ) : scoreDelta < 0 ? (
                 <> <Info className="w-5 h-5" /> This lifestyle requires more contributions to stay on track </>
+              ) : cappedButMoved ? (
+                 <> <Info className="w-5 h-5" /> Score is capped at 100, but underlying readiness moved {uncappedDelta > 0 ? 'up' : 'down'} ({uncappedDelta > 0 ? '+' : ''}{formatScore(uncappedDelta)} raw). </>
               ) : (
                   "No change to your retirement score"
               )}
@@ -374,7 +384,11 @@ const PageContent = () => {
                     SCORE IMPACT
                   </p>
                   <p style={{ fontSize: '1.5rem', fontWeight: 800, color: scoreDelta > 0 ? '#34D399' : scoreDelta < 0 ? '#EF4444' : '#94A3B8', fontFamily: 'Outfit' }}>
-                    {scoreDelta > 0 ? `+${scoreDelta}` : scoreDelta === 0 ? '—' : scoreDelta} pts
+                    {scoreDelta !== 0
+                      ? `${scoreDelta > 0 ? '+' : ''}${formatScore(scoreDelta)} pts`
+                      : cappedButMoved
+                        ? `${uncappedDelta > 0 ? '+' : ''}${formatScore(uncappedDelta)} raw`
+                        : '—'}
                   </p>
                 </div>
               </div>

@@ -31,17 +31,33 @@ const SectionHeader = ({ icon: Icon, title, editing, onEdit, color }) => (
   </div>
 );
 
-const ScoreImpact = ({ oldScore, newScore }) => {
-  if (oldScore === newScore) return null;
-  const delta = newScore - oldScore;
+const formatScore = (value) => {
+  if (!Number.isFinite(value)) return '0';
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+};
+
+const ScoreImpact = ({ oldScore, newScore, oldUncappedScore, newUncappedScore }) => {
+  const delta = Number((newScore - oldScore).toFixed(1));
+  const uncappedDelta = Number(((newUncappedScore ?? 0) - (oldUncappedScore ?? 0)).toFixed(1));
+  const cappedButMoved = oldScore === 100 && newScore === 100 && Math.abs(uncappedDelta) >= 0.1;
+
+  if (delta === 0 && !cappedButMoved) return null;
+
   return (
     <div className={`mt-6 p-4 rounded-xl border-2 border-[#1E293B] flex items-center justify-between font-bold text-[10px] uppercase tracking-widest ${delta > 0 ? 'bg-[#D1FAE5] text-emerald-700' : 'bg-[#FFFBEB] text-amber-700'}`}>
-       <span>Preview Score Impact</span>
+       <div className="flex flex-col gap-1">
+         <span>Preview Score Impact</span>
+         {cappedButMoved && (
+           <span className="text-[9px] normal-case tracking-normal opacity-80">
+             Capped at 100. Readiness moved {uncappedDelta > 0 ? '+' : ''}{uncappedDelta} pts underneath.
+           </span>
+         )}
+       </div>
        <div className="flex items-center gap-3">
-          <span className="opacity-40">{oldScore}</span>
+          <span className="opacity-40">{formatScore(oldScore)}</span>
           <ArrowRight className="w-3 h-3" />
           <span className="bg-white border-2 border-[#1E293B] px-2 py-0.5 rounded-full shadow-[2px_2px_0_0_#1E293B]">
-             {newScore} ({delta > 0 ? '+' : ''}{delta} pts)
+             {formatScore(newScore)} ({delta > 0 ? '+' : ''}{formatScore(delta)} pts)
           </span>
        </div>
     </div>
@@ -160,6 +176,7 @@ const PageContent = () => {
 
   if (!userData) return null;
 
+  const baseResults = calculateRetirement(userData);
   const simulatedResults = calculateRetirement(formData);
 
   return (
@@ -208,7 +225,12 @@ const PageContent = () => {
                     ))}
                   </div>
               </div>
-              <ScoreImpact oldScore={userData.score} newScore={simulatedResults.score} />
+              <ScoreImpact
+                oldScore={baseResults.scorePrecise ?? baseResults.score}
+                newScore={simulatedResults.scorePrecise ?? simulatedResults.score}
+                oldUncappedScore={baseResults.uncappedScore}
+                newUncappedScore={simulatedResults.uncappedScore}
+              />
               <button 
                 onClick={() => handleSave('personal')}
                 className="w-full py-4 bg-[#8B5CF6] text-white border-2 border-[#1E293B] rounded-full font-black uppercase tracking-widest text-xs pop-shadow hover:-translate-y-1 transition-all"
@@ -316,7 +338,12 @@ const PageContent = () => {
                   </div>
               </div>
 
-              <ScoreImpact oldScore={userData.score} newScore={simulatedResults.score} />
+              <ScoreImpact
+                oldScore={baseResults.scorePrecise ?? baseResults.score}
+                newScore={simulatedResults.scorePrecise ?? simulatedResults.score}
+                oldUncappedScore={baseResults.uncappedScore}
+                newUncappedScore={simulatedResults.uncappedScore}
+              />
               <button 
                 onClick={() => handleSave('income')}
                 className="w-full py-4 bg-[#F472B6] text-white border-2 border-[#1E293B] rounded-full font-black uppercase tracking-widest text-xs pop-shadow hover:-translate-y-1 transition-all"

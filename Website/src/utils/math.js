@@ -175,6 +175,7 @@ export function calculateRetirement(data) {
   // ── SCORE ──
   const readinessRatio = requiredCorpus > 0 ? (projectedValue / requiredCorpus) : 0
   const uncappedScore = Number.isFinite(readinessRatio) ? readinessRatio * 100 : 0
+  const scorePrecise = Math.max(0, Math.min(100, Number(uncappedScore.toFixed(1))))
   const score = Math.max(0, Math.min(100, Math.floor(uncappedScore)))
 
   // ── GAP & MONTHLY CLOSER ──
@@ -200,6 +201,7 @@ export function calculateRetirement(data) {
     projectedValue,
     requiredCorpus,
     score,
+    scorePrecise,
     gap,
     monthlyGap,
     monthlySpendAtRetirement,
