@@ -109,7 +109,7 @@ function parseRequestBody(req) {
   return {};
 }
 
-async function relayGroqStream(groqResponse, res) {
+async function relayGroqStream(groqResponse, res, streamMeta = null) {
   if (!groqResponse.body) {
     throw new Error('STREAM_BODY_MISSING');
   }
@@ -121,6 +121,10 @@ async function relayGroqStream(groqResponse, res) {
 
   if (typeof res.flushHeaders === 'function') {
     res.flushHeaders();
+  }
+
+  if (streamMeta) {
+    res.write(`data: ${JSON.stringify({ type: 'meta', ...streamMeta })}\n\n`);
   }
 
   const reader = groqResponse.body.getReader();
@@ -157,8 +161,17 @@ async function callGroqWithModel(groqApiKey, model, messages, stream) {
   return response;
 }
 
-async function callGroqWithFallback(groqApiKey, messages, stream) {
-  const models = [PRIMARY_MODEL, FALLBACK_MODEL].filter(Boolean);
+function getModelOrder(forceFallback = false) {
+  const ordered = forceFallback
+    ? [FALLBACK_MODEL, PRIMARY_MODEL]
+    : [PRIMARY_MODEL, FALLBACK_MODEL];
+
+  return [...new Set(ordered.filter(Boolean))];
+}
+
+async function callGroqWithFallback(groqApiKey, messages, stream, options = {}) {
+  const forceFallback = Boolean(options.forceFallback);
+  const models = getModelOrder(forceFallback);
   const attempts = [];
   let lastResponse = null;
 
@@ -267,13 +280,14 @@ export default async function handler(req, res) {
 
     const messages = normalizeMessages(body.messages);
     const stream = Boolean(body.stream);
+    const forceFallback = Boolean(body.forceFallback) && (isLocalhost || isLocalDebug);
 
     const groqApiKey = getEnv('GROQ_API_KEY');
     if (!groqApiKey) {
       return res.status(503).json({ code: 'SERVER_MISCONFIGURED', error: 'Groq API key is not configured on the server.' });
     }
 
-    const groqResult = await callGroqWithFallback(groqApiKey, messages, stream);
+    const groqResult = await callGroqWithFallback(groqApiKey, messages, stream, { forceFallback });
 
     if (!groqResult.ok) {
       const status = groqResult.response?.status || 502;
@@ -286,9 +300,16 @@ export default async function handler(req, res) {
 
     const groqResponse = groqResult.response;
     const servedModel = groqResult.model;
+    const fallbackUsed = servedModel !== PRIMARY_MODEL;
 
     if (stream) {
-      await relayGroqStream(groqResponse, res);
+      await relayGroqStream(groqResponse, res, {
+        model: servedModel,
+        primaryModel: PRIMARY_MODEL,
+        fallbackModel: FALLBACK_MODEL,
+        fallbackUsed,
+        forceFallback,
+      });
       return;
     }
 
@@ -297,6 +318,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       content: groqData?.choices?.[0]?.message?.content || '',
       model: servedModel,
+      fallbackUsed,
     });
   } catch (error) {
     if (error.message === 'AUTH_REQUIRED') {

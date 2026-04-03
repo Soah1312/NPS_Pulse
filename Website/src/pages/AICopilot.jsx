@@ -24,6 +24,25 @@ const PRIMARY_MODEL = import.meta.env.VITE_GROQ_PRIMARY_MODEL || 'qwen/qwen3-32b
 const FALLBACK_MODEL = import.meta.env.VITE_GROQ_FALLBACK_MODEL || 'openai/gpt-oss-120b';
 const USE_DIRECT_GROQ_DEV = import.meta.env.DEV && !!GROQ_API_KEY;
 
+const formatModelTag = (model) => `[${model || 'unknown-model'}]`;
+
+function sanitizeAssistantContent(content) {
+  if (typeof content !== 'string') return '';
+
+  let sanitized = content;
+  // Remove completed think blocks first.
+  sanitized = sanitized.replace(/<think>[\s\S]*?<\/think>/gi, '');
+
+  // If a think block starts but never closes, drop everything from its start.
+  const lastOpenThink = sanitized.toLowerCase().lastIndexOf('<think>');
+  if (lastOpenThink !== -1) {
+    sanitized = sanitized.slice(0, lastOpenThink);
+  }
+
+  sanitized = sanitized.replace(/<\/think>/gi, '');
+  return sanitized.trimStart();
+}
+
 const markdownComponents = {
   p: (props) => <p className="mb-3 last:mb-0 leading-relaxed" {...props} />,
   strong: (props) => <strong className="font-black text-[#1E293B]" {...props} />,
@@ -59,12 +78,16 @@ const markdownComponents = {
   hr: (props) => <hr className="my-4 border-slate-200" {...props} />,
 };
 
-async function streamGroq(messages, onChunk, onDone, onError) {
+async function streamGroq({ messages, onChunk, onDone, onError, onMeta, forceFallback = false }) {
   let response;
 
   if (USE_DIRECT_GROQ_DEV) {
-    const models = [PRIMARY_MODEL, FALLBACK_MODEL].filter(Boolean);
+    const orderedModels = forceFallback
+      ? [FALLBACK_MODEL, PRIMARY_MODEL]
+      : [PRIMARY_MODEL, FALLBACK_MODEL];
+    const models = [...new Set(orderedModels.filter(Boolean))];
     let lastError = null;
+    let selectedModel = null;
 
     for (const model of models) {
       response = await fetch(GROQ_URL, {
@@ -83,6 +106,7 @@ async function streamGroq(messages, onChunk, onDone, onError) {
       });
 
       if (response.ok) {
+        selectedModel = model;
         break;
       }
 
@@ -94,6 +118,15 @@ async function streamGroq(messages, onChunk, onDone, onError) {
       onError(lastError || 'Stream failed');
       return;
     }
+
+    onMeta?.({
+      type: 'meta',
+      model: selectedModel,
+      primaryModel: PRIMARY_MODEL,
+      fallbackModel: FALLBACK_MODEL,
+      fallbackUsed: selectedModel !== PRIMARY_MODEL,
+      forceFallback,
+    });
   } else {
     if (!auth.currentUser) {
       throw new Error('AUTH_REQUIRED');
@@ -111,6 +144,7 @@ async function streamGroq(messages, onChunk, onDone, onError) {
         messages,
         idToken,
         stream: true,
+        forceFallback,
       }),
     });
   }
@@ -142,6 +176,10 @@ async function streamGroq(messages, onChunk, onDone, onError) {
       }
       try {
         const parsed = JSON.parse(data);
+        if (parsed?.type === 'meta') {
+          onMeta?.(parsed);
+          continue;
+        }
         const chunk = parsed.choices?.[0]?.delta?.content;
         if (chunk) onChunk(chunk);
       } catch {
@@ -162,14 +200,15 @@ const QuickPrompt = ({ text, onClick }) => (
   </button>
 );
 
-const MessageBubble = ({ role, content, timestamp }) => {
+const MessageBubble = ({ role, content, timestamp, model, fallbackUsed }) => {
   const isAI = role === 'assistant' || role === 'system';
-  const renderedContent = isAI ? (content ?? '') : (content ?? '');
+  const renderedContent = isAI ? sanitizeAssistantContent(content ?? '') : (content ?? '');
+
   return (
     <div className={`flex flex-col ${isAI ? 'items-start' : 'items-end'}`}>
       <div className="flex items-center gap-2 mb-1">
         <div className={`text-[9px] font-black uppercase tracking-widest text-slate-400 ${!isAI && 'text-right w-full'}`}>
-          {isAI ? 'RetireSahi AI' : 'You'} • {new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          {isAI ? `RetireSahi AI ${formatModelTag(model)}` : 'You'}{isAI && fallbackUsed ? ' [fallback]' : ''} • {new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </div>
       </div>
       <div
@@ -215,10 +254,10 @@ const LoadingBubble = () => (
   </div>
 );
 
-const StreamingBubble = ({ content }) => (
+const StreamingBubble = ({ content, streamMeta }) => (
   <div className="flex flex-col items-start">
     <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">
-      RetireSahi AI • typing...
+      RetireSahi AI {formatModelTag(streamMeta?.model)}{streamMeta?.fallbackUsed ? ' [fallback]' : ''} • typing...
     </div>
     <div
       className="max-w-[85%] md:max-w-[75%] p-4 border-2 border-[#1E293B] pop-shadow bg-white"
@@ -249,6 +288,7 @@ const ChatInterface = () => {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
+  const [streamingMeta, setStreamingMeta] = useState(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState(null);
   const scrollRef = useRef(null);
@@ -306,8 +346,19 @@ const ChatInterface = () => {
 
   const handleSend = useCallback(async (content) => {
     if (!displayData) return;
-    const text = typeof content === 'string' ? content : inputValue;
-    if (!text.trim()) return;
+    const rawText = typeof content === 'string' ? content : inputValue;
+    if (!rawText.trim()) return;
+
+    const fallbackCommandMatch = rawText.trim().match(/^\/fallback\b\s*/i);
+    const forceFallback = Boolean(fallbackCommandMatch);
+    const text = forceFallback
+      ? rawText.trim().replace(/^\/fallback\b\s*/i, '').trim()
+      : rawText;
+
+    if (!text.trim()) {
+      setError('Add a question after /fallback to run a fallback test.');
+      return;
+    }
 
     const userMessage = { role: 'user', content: text, timestamp: new Date() };
     setMessages(prev => [...prev, userMessage]);
@@ -395,6 +446,7 @@ Never answer coding recipes stocks crypto medical legal questions.
 STYLE: Warm direct concise. Use Indian formatting Lakh Crore.
 Always use ${displayData.firstName}'s actual computed numbers.
 3-5 sentences for simple questions max 8-10 lines for complex.
+Never output hidden reasoning, chain-of-thought, or tags like <think>.
 `;
 
     const chatHistory = [
@@ -409,14 +461,18 @@ Always use ${displayData.firstName}'s actual computed numbers.
     try {
       setIsStreaming(true);
       setStreamingContent('');
+      setStreamingMeta(null);
       let fullContent = '';
+      let currentMeta = null;
 
       await streamGroq(
-        chatHistory,
-        (chunk) => {
+        {
+          messages: chatHistory,
+          forceFallback,
+          onChunk: (chunk) => {
           if (isLoading) setIsLoading(false);
           fullContent += chunk;
-          setStreamingContent(fullContent);
+          setStreamingContent(sanitizeAssistantContent(fullContent));
           if (scrollRef.current) {
             scrollRef.current.scrollTo({
               top: scrollRef.current.scrollHeight,
@@ -424,24 +480,35 @@ Always use ${displayData.firstName}'s actual computed numbers.
             });
           }
         },
-        () => {
+          onMeta: (meta) => {
+            currentMeta = meta;
+            setStreamingMeta(meta);
+          },
+          onDone: () => {
+          const finalContent = sanitizeAssistantContent(fullContent);
           setMessages((prev) => [...prev, {
             role: 'assistant',
-            content: fullContent,
+            content: finalContent,
+            model: currentMeta?.model || null,
+            fallbackUsed: Boolean(currentMeta?.fallbackUsed),
             timestamp: new Date(),
           }]);
           setStreamingContent('');
+          setStreamingMeta(null);
           setIsStreaming(false);
         },
-        (errMsg) => {
+          onError: (errMsg) => {
           setError(errMsg);
           setStreamingContent('');
+          setStreamingMeta(null);
           setIsStreaming(false);
+          },
         }
       );
     } catch (err) {
       setError(err.message || 'Something went wrong');
       setStreamingContent('');
+      setStreamingMeta(null);
       setIsStreaming(false);
     } finally {
       setIsLoading(false);
@@ -493,7 +560,7 @@ Always use ${displayData.firstName}'s actual computed numbers.
               <MessageBubble key={m.id || i} {...m} />
             ))}
             {isStreaming && streamingContent
-              ? <StreamingBubble content={streamingContent} />
+              ? <StreamingBubble content={streamingContent} streamMeta={streamingMeta} />
               : isLoading && !isStreaming
                 ? <LoadingBubble />
                 : null}
@@ -566,6 +633,9 @@ Always use ${displayData.firstName}'s actual computed numbers.
                 <Send className="w-5 h-5 md:w-6 md:h-6 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform text-[#1E293B]" strokeWidth={3} />
               )}
             </button>
+          </div>
+          <div className="mt-2 px-2 text-[10px] font-black uppercase tracking-widest text-[#1E293B]/40">
+            Testing tip: use /fallback before your prompt to force Llama fallback on localhost/dev.
           </div>
         </div>
       </div>
