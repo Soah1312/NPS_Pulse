@@ -2,7 +2,8 @@ import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const MODEL = 'openai/gpt-oss-120b';
+const PRIMARY_MODEL = getEnv('GROQ_PRIMARY_MODEL') || 'qwen/qwen3-32b';
+const FALLBACK_MODEL = getEnv('GROQ_FALLBACK_MODEL') || 'openai/gpt-oss-120b';
 const MAX_MESSAGES = 12;
 const MAX_CHARS_PER_MESSAGE = 6000;
 
@@ -137,6 +138,61 @@ async function relayGroqStream(groqResponse, res) {
   res.end();
 }
 
+async function callGroqWithModel(groqApiKey, model, messages, stream) {
+  const response = await fetch(GROQ_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${groqApiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: 0.7,
+      max_tokens: 1024,
+      stream,
+    }),
+  });
+
+  return response;
+}
+
+async function callGroqWithFallback(groqApiKey, messages, stream) {
+  const models = [PRIMARY_MODEL, FALLBACK_MODEL].filter(Boolean);
+  const attempts = [];
+  let lastResponse = null;
+
+  for (const model of models) {
+    try {
+      const response = await callGroqWithModel(groqApiKey, model, messages, stream);
+
+      if (response.ok) {
+        return { ok: true, response, model, attempts };
+      }
+
+      const errorData = await response.json().catch(() => ({}));
+      attempts.push({
+        model,
+        status: response.status,
+        error: errorData?.error?.message || 'Groq request failed',
+      });
+      lastResponse = response;
+    } catch (error) {
+      attempts.push({
+        model,
+        status: 0,
+        error: error?.message || 'Network error while calling model',
+      });
+    }
+  }
+
+  return {
+    ok: false,
+    response: lastResponse,
+    attempts,
+  };
+}
+
 async function verifyUserFromRequest(req, body = {}) {
   const authHeader = Array.isArray(req.headers.authorization)
     ? req.headers.authorization[0]
@@ -217,27 +273,19 @@ export default async function handler(req, res) {
       return res.status(503).json({ code: 'SERVER_MISCONFIGURED', error: 'Groq API key is not configured on the server.' });
     }
 
-    const groqResponse = await fetch(GROQ_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${groqApiKey}`,
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages,
-        temperature: 0.7,
-        max_tokens: 1024,
-        stream,
-      }),
-    });
+    const groqResult = await callGroqWithFallback(groqApiKey, messages, stream);
 
-    if (!groqResponse.ok) {
-      const groqData = await groqResponse.json().catch(() => ({}));
-      return res.status(groqResponse.status).json({
-        error: groqData?.error?.message || 'Groq request failed',
+    if (!groqResult.ok) {
+      const status = groqResult.response?.status || 502;
+      const lastError = groqResult.attempts[groqResult.attempts.length - 1]?.error || 'Groq request failed';
+      return res.status(status).json({
+        error: lastError,
+        attempts: groqResult.attempts,
       });
     }
+
+    const groqResponse = groqResult.response;
+    const servedModel = groqResult.model;
 
     if (stream) {
       await relayGroqStream(groqResponse, res);
@@ -248,6 +296,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       content: groqData?.choices?.[0]?.message?.content || '',
+      model: servedModel,
     });
   } catch (error) {
     if (error.message === 'AUTH_REQUIRED') {

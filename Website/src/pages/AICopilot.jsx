@@ -20,7 +20,8 @@ import { GROQ_PRIVACY_MODE_FIELDS, GROQ_FULL_MODE_FIELDS } from '../utils/encryp
 const AI_ENDPOINT = '/api/groq';
 const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY || '';
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const MODEL = 'openai/gpt-oss-120b';
+const PRIMARY_MODEL = import.meta.env.VITE_GROQ_PRIMARY_MODEL || 'qwen/qwen3-32b';
+const FALLBACK_MODEL = import.meta.env.VITE_GROQ_FALLBACK_MODEL || 'openai/gpt-oss-120b';
 const USE_DIRECT_GROQ_DEV = import.meta.env.DEV && !!GROQ_API_KEY;
 
 const markdownComponents = {
@@ -62,20 +63,37 @@ async function streamGroq(messages, onChunk, onDone, onError) {
   let response;
 
   if (USE_DIRECT_GROQ_DEV) {
-    response = await fetch(GROQ_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${GROQ_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        messages,
-        temperature: 0.7,
-        max_tokens: 1024,
-        stream: true,
-      }),
-    });
+    const models = [PRIMARY_MODEL, FALLBACK_MODEL].filter(Boolean);
+    let lastError = null;
+
+    for (const model of models) {
+      response = await fetch(GROQ_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${GROQ_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: 0.7,
+          max_tokens: 1024,
+          stream: true,
+        }),
+      });
+
+      if (response.ok) {
+        break;
+      }
+
+      const error = await response.json().catch(() => ({}));
+      lastError = error.error?.message || `Model ${model} failed`;
+    }
+
+    if (!response?.ok) {
+      onError(lastError || 'Stream failed');
+      return;
+    }
   } else {
     if (!auth.currentUser) {
       throw new Error('AUTH_REQUIRED');
