@@ -6,7 +6,12 @@ import { doc, setDoc } from 'firebase/firestore';
 import { calculateRetirement, getScoreBand } from '../utils/math';
 import { encryptUserData } from '../utils/encryption';
 import { INITIAL_USER_DATA } from '../components/UserContext';
-import { createDefaultLifestyleConfig } from '../constants/lifestyleConfig.js';
+import {
+  createDefaultLifestyleConfig,
+  LIFESTYLE_MODES,
+  LIFESTYLE_MULTIPLIERS,
+  normalizeLifestyleConfig,
+} from '../constants/lifestyleConfig.js';
 
 const COLORS = {
   bg: '#FFFDF5',
@@ -24,6 +29,7 @@ const MAX_MONTHLY_INCOME = 100000000; // 10 Cr
 const MAX_NPS_CONTRIBUTION = 100000000; // 10 Cr
 const MAX_NPS_CORPUS = 1000000000; // 100 Cr
 const MAX_TAX_INPUT = 10000000; // 1 Cr
+const MAX_CUSTOM_LIFESTYLE_SPEND = 10000000; // 1 Cr
 
 const parseNumericInput = (value) => {
   if (typeof value === 'number') {
@@ -195,6 +201,8 @@ export default function Onboarding() {
     npsUsage: '',
     npsContribution: '',
     npsCorpus: '',
+    lifestyleMode: '',
+    customLifestyleMonthlySpend: '',
     lifestyle: '',
     totalSavings: '',
   });
@@ -307,6 +315,29 @@ export default function Onboarding() {
     return nextErrors;
   };
 
+  const validateLifestyleStep = (data) => {
+    const nextErrors = {};
+
+    if (!data.lifestyleMode) {
+      nextErrors.lifestyleMode = 'Choose preset or custom mode';
+    }
+
+    if (!data.lifestyle) {
+      nextErrors.lifestyle = 'Choose a lifestyle profile';
+    }
+
+    if (data.lifestyleMode === LIFESTYLE_MODES.CUSTOM) {
+      const customSpend = parseNumericInput(data.customLifestyleMonthlySpend);
+      if (!(customSpend > 0)) {
+        nextErrors.customLifestyleMonthlySpend = 'Add a custom monthly lifestyle amount';
+      } else if (customSpend > MAX_CUSTOM_LIFESTYLE_SPEND) {
+        nextErrors.customLifestyleMonthlySpend = 'Custom spend is too large (sanity cap exceeded)';
+      }
+    }
+
+    return nextErrors;
+  };
+
   const validateStep1 = (data) => {
     const nextErrors = {};
     if (!data.firstName?.trim()) {
@@ -320,31 +351,51 @@ export default function Onboarding() {
       ...validateStep1(data),
       ...validateIncome(data),
       ...validateNps(data, parsed),
+      ...validateLifestyleStep(data),
     };
   };
 
-  const parsedData = useMemo(() => ({
-    ...formData,
-    age: parseIntegerInput(formData.age, 28),
-    monthlyIncome: parseNumericInput(formData.monthlyIncome) || 0,
-    npsContribution: formData.npsUsage === 'none' ? 0 : (parseNumericInput(formData.npsContribution) || (formData.npsUsage === 'upload' ? 4500 : 0)),
-    npsCorpus: formData.npsUsage === 'none' ? 0 : (parseNumericInput(formData.npsCorpus) || (formData.npsUsage === 'upload' ? 120000 : 0)),
-    totalSavings: parseNumericInput(formData.totalSavings) || 0,
-    retireAge: parseIntegerInput(formData.retireAge, 60),
-    lifestyle: (formData.lifestyle || 'comfortable').toLowerCase(),
-    lifestyleConfig: createDefaultLifestyleConfig((formData.lifestyle || 'comfortable').toLowerCase()),
-    homeLoanInterest: parseCurrencyInput(formData.homeLoanInterest),
-    lifeInsurance_80C: parseCurrencyInput(formData.lifeInsurance_80C),
-    elss_ppf_80C: parseCurrencyInput(formData.elss_ppf_80C),
-    medicalInsurance_80D: parseCurrencyInput(formData.medicalInsurance_80D),
-    educationLoanInterest_80E: parseCurrencyInput(formData.educationLoanInterest_80E),
-    houseRentAllowance_HRA: parseCurrencyInput(formData.houseRentAllowance_HRA),
-    actualRentPaid: parseCurrencyInput(formData.actualRentPaid),
-    leaveTravelAllowance_LTA: parseCurrencyInput(formData.leaveTravelAllowance_LTA),
-    isGovtEmployee: Boolean(formData.isGovtEmployee),
-    basicSalaryPct: Math.max(0.2, Math.min(0.8, Number(formData.basicSalaryPct) || 0.4)),
-    hasOptedForEmployerNPS: Boolean(formData.hasOptedForEmployerNPS),
-  }), [formData]);
+  const parsedData = useMemo(() => {
+    const monthlyIncome = parseNumericInput(formData.monthlyIncome) || 0;
+    const lifestyle = (formData.lifestyle || 'comfortable').toLowerCase();
+    const lifestyleMode = formData.lifestyleMode === LIFESTYLE_MODES.CUSTOM
+      ? LIFESTYLE_MODES.CUSTOM
+      : LIFESTYLE_MODES.PRESET;
+    const presetSpendFallback = monthlyIncome * (LIFESTYLE_MULTIPLIERS[lifestyle] || LIFESTYLE_MULTIPLIERS.comfortable);
+    const customMonthlySpend = Math.max(0, Math.min(MAX_CUSTOM_LIFESTYLE_SPEND, parseNumericInput(formData.customLifestyleMonthlySpend) || 0));
+
+    return {
+      ...formData,
+      age: parseIntegerInput(formData.age, 28),
+      monthlyIncome,
+      npsContribution: formData.npsUsage === 'none' ? 0 : (parseNumericInput(formData.npsContribution) || (formData.npsUsage === 'upload' ? 4500 : 0)),
+      npsCorpus: formData.npsUsage === 'none' ? 0 : (parseNumericInput(formData.npsCorpus) || (formData.npsUsage === 'upload' ? 120000 : 0)),
+      totalSavings: parseNumericInput(formData.totalSavings) || 0,
+      retireAge: parseIntegerInput(formData.retireAge, 60),
+      lifestyle,
+      lifestyleMode,
+      customLifestyleMonthlySpend: customMonthlySpend,
+      lifestyleConfig: normalizeLifestyleConfig({
+        ...createDefaultLifestyleConfig(lifestyle),
+        mode: lifestyleMode,
+        preset: lifestyle,
+        customMonthlySpend: lifestyleMode === LIFESTYLE_MODES.CUSTOM
+          ? (customMonthlySpend > 0 ? customMonthlySpend : presetSpendFallback)
+          : 0,
+      }, lifestyle),
+      homeLoanInterest: parseCurrencyInput(formData.homeLoanInterest),
+      lifeInsurance_80C: parseCurrencyInput(formData.lifeInsurance_80C),
+      elss_ppf_80C: parseCurrencyInput(formData.elss_ppf_80C),
+      medicalInsurance_80D: parseCurrencyInput(formData.medicalInsurance_80D),
+      educationLoanInterest_80E: parseCurrencyInput(formData.educationLoanInterest_80E),
+      houseRentAllowance_HRA: parseCurrencyInput(formData.houseRentAllowance_HRA),
+      actualRentPaid: parseCurrencyInput(formData.actualRentPaid),
+      leaveTravelAllowance_LTA: parseCurrencyInput(formData.leaveTravelAllowance_LTA),
+      isGovtEmployee: Boolean(formData.isGovtEmployee),
+      basicSalaryPct: Math.max(0.2, Math.min(0.8, Number(formData.basicSalaryPct) || 0.4)),
+      hasOptedForEmployerNPS: Boolean(formData.hasOptedForEmployerNPS),
+    };
+  }, [formData]);
 
   const results = useMemo(() => calculateRetirement(parsedData), [parsedData]);
 
@@ -375,6 +426,10 @@ export default function Onboarding() {
       stepErrors = validateAgeRules(formData);
     }
 
+    if (step === 6) {
+      stepErrors = validateLifestyleStep(formData);
+    }
+
     if (Object.keys(stepErrors).length > 0) {
       setErrors((prev) => ({ ...prev, ...stepErrors }));
       return;
@@ -384,6 +439,7 @@ export default function Onboarding() {
     if (step === 3) clearErrorsForFields(['monthlyIncome']);
     if (step === 4) clearErrorsForFields(['npsUsage', 'npsContribution', 'npsCorpus']);
     if (step === 5) clearErrorsForFields(['age', 'retireAge']);
+    if (step === 6) clearErrorsForFields(['lifestyleMode', 'lifestyle', 'customLifestyleMonthlySpend']);
 
     setStep((s) => s + 1);
   };
@@ -594,6 +650,50 @@ export default function Onboarding() {
             {step === 6 && (
               <div className="animate-fade-in space-y-4">
                 <h2 className="font-heading font-extrabold text-2xl md:text-3xl leading-tight text-center mb-6">What kind of life do you want after retirement?</h2>
+                <div className="bg-[#FFFDF5] border-2 border-[#1E293B] rounded-2xl p-4 md:p-5 space-y-3">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <p className="font-black text-xs uppercase tracking-widest text-[#1E293B]/60">Planning mode</p>
+                    <span className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full border border-[#1E293B] bg-[#34D399]/20 text-[#065F46]">
+                      Recommended: preset
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => {
+                        setFormData({ ...formData, lifestyleMode: LIFESTYLE_MODES.PRESET });
+                        clearErrorsForFields(['lifestyleMode', 'customLifestyleMonthlySpend']);
+                      }}
+                      className={`py-3 rounded-xl border-2 border-[#1E293B] font-black uppercase tracking-widest text-xs transition-all ${formData.lifestyleMode === LIFESTYLE_MODES.PRESET ? 'bg-[#34D399] text-[#1E293B] shadow-[3px_3px_0_0_#1E293B]' : 'bg-white text-[#1E293B]'}`}
+                    >
+                      Preset
+                    </button>
+                    <button
+                      onClick={() => {
+                        setFormData({ ...formData, lifestyleMode: LIFESTYLE_MODES.CUSTOM });
+                        clearErrorsForFields(['lifestyleMode']);
+                      }}
+                      className={`py-3 rounded-xl border-2 border-[#1E293B] font-black uppercase tracking-widest text-xs transition-all ${formData.lifestyleMode === LIFESTYLE_MODES.CUSTOM ? 'bg-[#8B5CF6] text-white shadow-[3px_3px_0_0_#1E293B]' : 'bg-white text-[#1E293B]'}`}
+                    >
+                      Custom
+                    </button>
+                  </div>
+                  {errors.lifestyleMode && (
+                    <p className="text-xs font-bold text-[#EF4444] uppercase tracking-wide">{errors.lifestyleMode}</p>
+                  )}
+                  {formData.lifestyleMode === LIFESTYLE_MODES.CUSTOM && (
+                    <div className="pt-1 animate-fade-in space-y-2">
+                      <InputField
+                        label="Custom monthly lifestyle spend (₹)"
+                        type="number"
+                        name="customLifestyleMonthlySpend"
+                        value={formData.customLifestyleMonthlySpend}
+                        onChange={handleChange}
+                        placeholder="60,000"
+                        error={errors.customLifestyleMonthlySpend}
+                      />
+                    </div>
+                  )}
+                </div>
                 {[
                   { val: 'essential', label: 'Essential', desc: '40% of income — basic needs only' },
                   { val: 'comfortable', label: 'Comfortable', desc: '60% of income — realistic middle India' },
@@ -601,10 +701,16 @@ export default function Onboarding() {
                 ].map(opt => (
                   <CardOption 
                     key={opt.val} label={opt.label} desc={opt.desc} 
-                    selected={formData.lifestyle === opt.val} 
-                    onClick={() => setFormData({...formData, lifestyle: opt.val})} 
+                    selected={formData.lifestyle === opt.val}
+                    onClick={() => {
+                      setFormData({ ...formData, lifestyle: opt.val, lifestyleMode: formData.lifestyleMode || LIFESTYLE_MODES.PRESET });
+                      clearErrorsForFields(['lifestyle', 'lifestyleMode']);
+                    }} 
                   />
                 ))}
+                {errors.lifestyle && (
+                  <p className="text-xs font-bold text-[#EF4444] uppercase tracking-wide text-center">{errors.lifestyle}</p>
+                )}
                 <p className="text-[10px] font-bold text-[#1E293B]/40 uppercase text-center mt-2 px-4 italic">Nobody needs to replace 100% of gross income in retirement.</p>
               </div>
             )}
@@ -700,7 +806,11 @@ export default function Onboarding() {
                   (step === 2 && !formData.workContext) ||
                   (step === 3 && !formData.monthlyIncome) ||
                   (step === 4 && !formData.npsUsage) ||
-                  (step === 6 && !formData.lifestyle)
+                  (step === 6 && (
+                    !formData.lifestyleMode ||
+                    !formData.lifestyle ||
+                    (formData.lifestyleMode === LIFESTYLE_MODES.CUSTOM && !(parseNumericInput(formData.customLifestyleMonthlySpend) > 0))
+                  ))
                 }
                 className="candy-btn w-full py-4 text-base md:text-lg font-black uppercase tracking-widest pop-shadow flex justify-center items-center gap-3 cursor-pointer"
              >

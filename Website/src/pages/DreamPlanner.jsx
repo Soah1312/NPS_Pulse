@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Home,
   Coffee,
@@ -53,6 +53,50 @@ const CATEGORIES = LIFESTYLE_CATEGORY_BLUEPRINT.map((item) => ({
 }));
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const MAX_CATEGORY_MONTHLY_AMOUNT = 5000000;
+
+function getPresetFallbackSpend(monthlyIncome, preset) {
+  return Math.round(monthlyIncome * (LIFESTYLE_MULTIPLIERS[preset] || LIFESTYLE_MULTIPLIERS.comfortable));
+}
+
+function calculateCustomSpendFromAmounts(categoryAmounts = {}) {
+  return CATEGORIES.reduce((sum, cat) => sum + Math.max(0, Number(categoryAmounts[cat.id]) || 0), 0);
+}
+
+function buildCategoryMixFromAmounts(categoryAmounts = {}) {
+  const total = calculateCustomSpendFromAmounts(categoryAmounts);
+
+  if (total <= 0) {
+    return normalizeCategoryMix();
+  }
+
+  const rawMix = CATEGORIES.reduce((acc, cat) => {
+    acc[cat.id] = ((Math.max(0, Number(categoryAmounts[cat.id]) || 0)) / total) * 100;
+    return acc;
+  }, {});
+
+  return normalizeCategoryMix(rawMix);
+}
+
+function splitSpendAcrossCategories(totalSpend, categoryMix = {}) {
+  const normalizedMix = normalizeCategoryMix(categoryMix);
+  const spend = Math.max(0, Math.round(Number(totalSpend) || 0));
+  const amounts = {};
+  let allocated = 0;
+
+  CATEGORIES.forEach((cat, index) => {
+    if (index === CATEGORIES.length - 1) {
+      amounts[cat.id] = Math.max(0, spend - allocated);
+      return;
+    }
+
+    const nextValue = Math.max(0, Math.round((normalizedMix[cat.id] / 100) * spend));
+    amounts[cat.id] = nextValue;
+    allocated += nextValue;
+  });
+
+  return amounts;
+}
 
 const LifestyleCard = ({ type, selected, onClick, monthlyIncome, yearsToRetire }) => {
   const configs = {
@@ -164,8 +208,12 @@ const ModeSwitcher = ({ mode, onChange }) => (
   </div>
 );
 
-const CustomLifestyleEditor = ({ customMonthlySpend, onCustomSpendChange, categoryMix, onCategoryChange }) => {
-  const totalShare = Object.values(categoryMix).reduce((sum, value) => sum + value, 0);
+const CustomLifestyleEditor = ({ categoryAmounts, onCategoryAmountChange, monthlyIncome }) => {
+  const customMonthlySpend = calculateCustomSpendFromAmounts(categoryAmounts);
+  const categoryMix = buildCategoryMixFromAmounts(categoryAmounts);
+  const salaryUsagePct = monthlyIncome > 0 ? (customMonthlySpend / monthlyIncome) * 100 : 0;
+  const salarySavedPct = Math.max(0, 100 - salaryUsagePct);
+  const salaryOverdrawPct = Math.max(0, salaryUsagePct - 100);
 
   return (
     <div className="bg-white border-2 border-[#1E293B] rounded-[20px] p-6 md:p-8 pop-shadow space-y-6">
@@ -175,29 +223,21 @@ const CustomLifestyleEditor = ({ customMonthlySpend, onCustomSpendChange, catego
         </div>
         <div>
           <h3 className="font-heading font-black text-xl">Build Your Custom Monthly Lifestyle</h3>
-          <p className="text-xs font-bold uppercase tracking-widest text-[#1E293B]/50">Set your expected monthly spend and distribution.</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-[#1E293B]/50">Set rupee amounts by category. We auto-calculate total spend.</p>
         </div>
       </div>
 
-      <div className="space-y-2">
-        <label className="text-[10px] font-black uppercase tracking-widest text-[#1E293B]/50">Monthly spend today</label>
-        <div className="relative">
-          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[#1E293B]/50 font-black">₹</span>
-          <input
-            type="number"
-            min="0"
-            step="1000"
-            value={Math.round(customMonthlySpend)}
-            onChange={(e) => onCustomSpendChange(clamp(Number(e.target.value) || 0, 0, 5000000))}
-            className="w-full border-2 border-[#1E293B] rounded-xl pl-9 pr-4 py-3 font-bold text-sm focus:outline-none focus:shadow-[3px_3px_0_0_#8B5CF6]"
-          />
-        </div>
+      <div className="rounded-xl border-2 border-[#1E293B] bg-[#FFFDF5] p-4">
+        <div className="text-[10px] font-black uppercase tracking-widest text-[#1E293B]/40">Monthly Spend (Auto)</div>
+        <div className="font-heading font-black text-2xl text-[#1E293B] mt-1">{formatIndian(customMonthlySpend)}</div>
+        <div className="text-[10px] font-bold uppercase tracking-widest text-[#1E293B]/40 mt-1">Based on category amounts</div>
       </div>
 
       <div className="space-y-4">
         {CATEGORIES.map((cat) => {
           const share = Number(categoryMix[cat.id] || 0);
-          const monthlyBucket = customMonthlySpend * (share / 100);
+          const monthlyBucket = Math.max(0, Number(categoryAmounts[cat.id]) || 0);
+          const displayAmount = monthlyBucket > 0 ? Math.round(monthlyBucket) : '';
           const Icon = cat.icon;
 
           return (
@@ -212,42 +252,37 @@ const CustomLifestyleEditor = ({ customMonthlySpend, onCustomSpendChange, catego
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="text-[9px] font-black uppercase tracking-widest text-[#1E293B]/40">Monthly</div>
-                  <div className="font-heading font-bold text-sm">{formatIndian(monthlyBucket)}</div>
+                  <div className="text-[9px] font-black uppercase tracking-widest text-[#1E293B]/40">Share</div>
+                  <div className="font-heading font-bold text-sm">{share.toFixed(1)}%</div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-4">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#1E293B]/50 font-black">₹</span>
                 <input
-                  type="range"
+                  type="number"
                   min="0"
-                  max="100"
-                  step="0.1"
-                  value={share}
-                  onChange={(e) => onCategoryChange(cat.id, Number(e.target.value))}
-                  className="w-full h-2 bg-slate-100 border border-[#1E293B]/20 rounded-lg appearance-none cursor-pointer"
-                  style={{ accentColor: cat.color }}
+                  step="500"
+                  value={displayAmount}
+                  onChange={(e) => onCategoryAmountChange(cat.id, Number(e.target.value))}
+                  className="w-full border-2 border-[#1E293B]/20 rounded-lg pl-8 pr-3 py-2 text-sm font-black text-left focus:outline-none focus:shadow-[2px_2px_0_0_#8B5CF6]"
                 />
-                <div className="w-20 relative">
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    value={share}
-                    onChange={(e) => onCategoryChange(cat.id, Number(e.target.value))}
-                    className="w-full border-2 border-[#1E293B]/20 rounded-lg px-2 py-1.5 text-sm font-black text-right"
-                  />
-                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-[#1E293B]/50">%</span>
-                </div>
               </div>
             </div>
           );
         })}
       </div>
 
-      <div className={`text-[10px] font-black uppercase tracking-widest px-3 py-2 rounded-full inline-flex border-2 border-[#1E293B] ${Math.abs(totalShare - 100) < 0.1 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-        Total allocation: {totalShare.toFixed(1)}%
+      <div className={`text-[10px] font-black uppercase tracking-widest px-3 py-2 rounded-xl inline-flex flex-wrap gap-2 border-2 border-[#1E293B] ${salaryOverdrawPct > 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+        <span>Using {salaryUsagePct.toFixed(1)}% of monthly salary</span>
+        <span>•</span>
+        <span>Saving {salarySavedPct.toFixed(1)}%</span>
+        {salaryOverdrawPct > 0 && (
+          <>
+            <span>•</span>
+            <span>Overdrawn by {salaryOverdrawPct.toFixed(1)}%</span>
+          </>
+        )}
       </div>
     </div>
   );
@@ -355,37 +390,6 @@ const CategoryBreakdown = ({ categoryMix, monthlySpendToday, monthlySpendRetirem
   </div>
 );
 
-function rebalanceCategoryMix(currentMix, categoryId, nextShare) {
-  const ids = Object.keys(currentMix);
-  if (!ids.includes(categoryId)) return currentMix;
-
-  const clampedShare = clamp(Number(nextShare) || 0, 0, 100);
-  const otherIds = ids.filter((id) => id !== categoryId);
-  const remaining = Math.max(0, 100 - clampedShare);
-  const otherTotal = otherIds.reduce((sum, id) => sum + (Number(currentMix[id]) || 0), 0);
-
-  const nextMix = { ...currentMix, [categoryId]: clampedShare };
-
-  if (otherIds.length === 0) {
-    return normalizeCategoryMix(nextMix);
-  }
-
-  if (otherTotal <= 0) {
-    const evenShare = remaining / otherIds.length;
-    otherIds.forEach((id) => {
-      nextMix[id] = evenShare;
-    });
-    return normalizeCategoryMix(nextMix);
-  }
-
-  otherIds.forEach((id) => {
-    const sourceShare = Number(currentMix[id]) || 0;
-    nextMix[id] = (sourceShare / otherTotal) * remaining;
-  });
-
-  return normalizeCategoryMix(nextMix);
-}
-
 const PageContent = () => {
   const { userData, setUserData } = useUser();
   const [showToast, setShowToast] = useState(false);
@@ -402,20 +406,40 @@ const PageContent = () => {
   const yearsToRetire = Math.max(1, (Number(userData?.retireAge) || 60) - (Number(userData?.age) || 30));
 
   const [planMode, setPlanMode] = useState(baselineConfig.mode);
+  const [isModeTransitioning, setIsModeTransitioning] = useState(false);
   const [selectedLifestyle, setSelectedLifestyle] = useState(baselineConfig.preset);
-  const [customMonthlySpend, setCustomMonthlySpend] = useState(
-    baselineConfig.customMonthlySpend || Math.round(monthlyIncome * (LIFESTYLE_MULTIPLIERS[baselineConfig.preset] || 0.6))
-  );
-  const [categoryMix, setCategoryMix] = useState(baselineConfig.categories);
+  const [categoryAmounts, setCategoryAmounts] = useState(() => {
+    const fallbackSpend = getPresetFallbackSpend(monthlyIncome, baselineConfig.preset);
+    return splitSpendAcrossCategories(
+      baselineConfig.customMonthlySpend || fallbackSpend,
+      baselineConfig.categories
+    );
+  });
+  const modeTransitionFrameRef = useRef(null);
 
   useEffect(() => {
     const hydrated = JSON.parse(baselineConfigKey);
     setPlanMode(hydrated.mode);
     setSelectedLifestyle(hydrated.preset);
-    const fallbackSpend = Math.round(monthlyIncome * (LIFESTYLE_MULTIPLIERS[hydrated.preset] || 0.6));
-    setCustomMonthlySpend(hydrated.customMonthlySpend || fallbackSpend);
-    setCategoryMix(hydrated.categories);
+    const fallbackSpend = getPresetFallbackSpend(monthlyIncome, hydrated.preset);
+    setCategoryAmounts(splitSpendAcrossCategories(hydrated.customMonthlySpend || fallbackSpend, hydrated.categories));
   }, [baselineConfigKey, monthlyIncome]);
+
+  useEffect(() => () => {
+    if (modeTransitionFrameRef.current) {
+      cancelAnimationFrame(modeTransitionFrameRef.current);
+    }
+  }, []);
+
+  const customMonthlySpend = useMemo(
+    () => calculateCustomSpendFromAmounts(categoryAmounts),
+    [categoryAmounts]
+  );
+
+  const customCategoryMix = useMemo(
+    () => buildCategoryMixFromAmounts(categoryAmounts),
+    [categoryAmounts]
+  );
 
   const simulationConfig = useMemo(
     () =>
@@ -423,12 +447,12 @@ const PageContent = () => {
         {
           mode: planMode,
           preset: selectedLifestyle,
-          customMonthlySpend,
-          categories: categoryMix,
+          customMonthlySpend: planMode === LIFESTYLE_MODES.CUSTOM ? customMonthlySpend : 0,
+          categories: planMode === LIFESTYLE_MODES.CUSTOM ? customCategoryMix : baselineConfig.categories,
         },
         selectedLifestyle
       ),
-    [planMode, selectedLifestyle, customMonthlySpend, categoryMix]
+    [planMode, selectedLifestyle, customMonthlySpend, customCategoryMix, baselineConfig.categories]
   );
 
   const simulationConfigKey = useMemo(() => JSON.stringify(simulationConfig), [simulationConfig]);
@@ -448,24 +472,36 @@ const PageContent = () => {
   if (!userData || !baseResults || !simResults) return null;
 
   const handleModeChange = (nextMode) => {
+    if (nextMode === planMode) return;
+
+    setIsModeTransitioning(true);
     setPlanMode(nextMode);
+
     if (nextMode === LIFESTYLE_MODES.CUSTOM && customMonthlySpend <= 0) {
-      const fallbackSpend = Math.round(monthlyIncome * (LIFESTYLE_MULTIPLIERS[selectedLifestyle] || 0.6));
-      setCustomMonthlySpend(fallbackSpend);
+      const fallbackSpend = getPresetFallbackSpend(monthlyIncome, selectedLifestyle);
+      setCategoryAmounts(splitSpendAcrossCategories(fallbackSpend, customCategoryMix));
     }
+
+    modeTransitionFrameRef.current = requestAnimationFrame(() => {
+      modeTransitionFrameRef.current = requestAnimationFrame(() => {
+        setIsModeTransitioning(false);
+      });
+    });
   };
 
-  const handleCategoryChange = (categoryId, nextShare) => {
-    setCategoryMix((prev) => rebalanceCategoryMix(prev, categoryId, nextShare));
+  const handleCategoryAmountChange = (categoryId, nextAmount) => {
+    setCategoryAmounts((prev) => ({
+      ...prev,
+      [categoryId]: clamp(Number(nextAmount) || 0, 0, MAX_CATEGORY_MONTHLY_AMOUNT),
+    }));
   };
 
   const handleReset = () => {
     const hydrated = JSON.parse(baselineConfigKey);
     setPlanMode(hydrated.mode);
     setSelectedLifestyle(hydrated.preset);
-    const fallbackSpend = Math.round(monthlyIncome * (LIFESTYLE_MULTIPLIERS[hydrated.preset] || 0.6));
-    setCustomMonthlySpend(hydrated.customMonthlySpend || fallbackSpend);
-    setCategoryMix(hydrated.categories);
+    const fallbackSpend = getPresetFallbackSpend(monthlyIncome, hydrated.preset);
+    setCategoryAmounts(splitSpendAcrossCategories(hydrated.customMonthlySpend || fallbackSpend, hydrated.categories));
   };
 
   const handleSave = async () => {
@@ -524,20 +560,21 @@ const PageContent = () => {
 
         <ModeSwitcher mode={planMode} onChange={handleModeChange} />
 
-        {planMode === LIFESTYLE_MODES.PRESET ? (
-          <div className="flex flex-col md:flex-row gap-6">
-            <LifestyleCard type="essential" selected={selectedLifestyle === 'essential'} onClick={setSelectedLifestyle} monthlyIncome={monthlyIncome} yearsToRetire={yearsToRetire} />
-            <LifestyleCard type="comfortable" selected={selectedLifestyle === 'comfortable'} onClick={setSelectedLifestyle} monthlyIncome={monthlyIncome} yearsToRetire={yearsToRetire} />
-            <LifestyleCard type="premium" selected={selectedLifestyle === 'premium'} onClick={setSelectedLifestyle} monthlyIncome={monthlyIncome} yearsToRetire={yearsToRetire} />
-          </div>
-        ) : (
-          <CustomLifestyleEditor
-            customMonthlySpend={customMonthlySpend}
-            onCustomSpendChange={setCustomMonthlySpend}
-            categoryMix={categoryMix}
-            onCategoryChange={handleCategoryChange}
-          />
-        )}
+        <div className={`transition-all duration-300 ease-out ${isModeTransitioning ? 'opacity-0 translate-y-2 scale-[0.985]' : 'opacity-100 translate-y-0 scale-100'}`}>
+          {planMode === LIFESTYLE_MODES.PRESET ? (
+            <div className="flex flex-col md:flex-row gap-6">
+              <LifestyleCard type="essential" selected={selectedLifestyle === 'essential'} onClick={setSelectedLifestyle} monthlyIncome={monthlyIncome} yearsToRetire={yearsToRetire} />
+              <LifestyleCard type="comfortable" selected={selectedLifestyle === 'comfortable'} onClick={setSelectedLifestyle} monthlyIncome={monthlyIncome} yearsToRetire={yearsToRetire} />
+              <LifestyleCard type="premium" selected={selectedLifestyle === 'premium'} onClick={setSelectedLifestyle} monthlyIncome={monthlyIncome} yearsToRetire={yearsToRetire} />
+            </div>
+          ) : (
+            <CustomLifestyleEditor
+              categoryAmounts={categoryAmounts}
+              onCategoryAmountChange={handleCategoryAmountChange}
+              monthlyIncome={monthlyIncome}
+            />
+          )}
+        </div>
       </section>
 
       <InflationRealityCheck yearsToRetire={yearsToRetire} monthlySpendToday={simResults.monthlySpendToday} />
