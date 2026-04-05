@@ -9,6 +9,14 @@ import {
   LIFESTYLE_MODES,
   normalizeLifestyleConfig,
 } from '../constants/lifestyleConfig.js'
+import {
+  RETIREMENT_MODES,
+  OTHER_SCHEME_DEFAULT_RETURN,
+  OTHER_SCHEME_CONFIGS,
+  inferRetirementMode,
+  getOtherSchemeAnnualReturn,
+  getTotalOtherSchemeMonthlyContribution,
+} from '../constants/investmentSchemes.js'
 
 // ── SCHEME RETURNS (10-year averages) ───────
 export const SCHEME_E_RETURN = 0.1269   // Equity
@@ -163,18 +171,73 @@ function resolveLifestyleInputs(data, monthlyIncome) {
   }
 }
 
+function parseAmount(value) {
+  return Math.max(0, Number(value) || 0)
+}
+
+function computeFutureValue(corpus, monthlyContribution, monthlyRate, months) {
+  const baseCorpus = Math.max(0, Number(corpus) || 0)
+  const monthly = Math.max(0, Number(monthlyContribution) || 0)
+
+  if (monthlyRate <= 0) {
+    return baseCorpus + (monthly * months)
+  }
+
+  const corpusFuture = baseCorpus * Math.pow(1 + monthlyRate, months)
+  const contributionFuture = monthly > 0
+    ? monthly * (Math.pow(1 + monthlyRate, months) - 1) / monthlyRate
+    : 0
+
+  return corpusFuture + contributionFuture
+}
+
+function resolveRetirementMode(data) {
+  return Object.values(RETIREMENT_MODES).includes(data?.retirementMode)
+    ? data.retirementMode
+    : inferRetirementMode(data)
+}
+
+function getPrimaryOtherSchemeConfig(data) {
+  return OTHER_SCHEME_CONFIGS.find((scheme) => Boolean(data?.[scheme.toggleField])) || OTHER_SCHEME_CONFIGS[2]
+}
+
+function buildOtherContributionBoost(data, amount) {
+  const target = getPrimaryOtherSchemeConfig(data)
+  return {
+    [target.toggleField]: true,
+    [target.monthlyField]: parseAmount(data?.[target.monthlyField]) + amount,
+  }
+}
+
 export function calculateRetirement(data) {
   const age         = parseInt(data.age) || 25
   const retireAge   = parseInt(data.retireAge) || 60
   const years       = Math.max(1, retireAge - age)
   const n           = years * 12   // total months
 
-  const monthlyIncome      = Math.max(0, parseFloat(data.monthlyIncome) || 0)
-  const monthlyContribRaw  = Math.max(0, parseFloat(data.npsContribution) || 0)
-  const monthlyContrib     = Math.min(Math.max(0, monthlyContribRaw), Math.max(0, monthlyIncome))
-  const npsCorpus          = Math.max(0, parseFloat(data.npsCorpus) || 0)
-  const otherSavings       = data.addSavings ? Math.max(0, parseFloat(data.totalSavings) || 0) : 0
-  const totalCorpus        = npsCorpus + otherSavings
+  const monthlyIncome = Math.max(0, parseFloat(data.monthlyIncome) || 0)
+  const retirementMode = resolveRetirementMode(data)
+  const includeNps = retirementMode !== RETIREMENT_MODES.NON_NPS_ONLY
+  const includeOther = retirementMode !== RETIREMENT_MODES.NPS_ONLY
+
+  const monthlyContribRaw = parseAmount(data.npsContribution)
+  const monthlyContrib = includeNps
+    ? Math.min(monthlyContribRaw, Math.max(0, monthlyIncome))
+    : 0
+
+  const npsCorpusRaw = parseAmount(data.npsCorpus)
+  const npsCorpus = includeNps ? npsCorpusRaw : 0
+
+  const explicitMode = Object.values(RETIREMENT_MODES).includes(data?.retirementMode)
+  const rawOtherSavings = parseAmount(data.totalSavings)
+  const legacyOtherSavings = data.addSavings ? rawOtherSavings : 0
+  const otherSavings = includeOther ? (explicitMode ? rawOtherSavings : legacyOtherSavings) : 0
+
+  const rawOtherMonthlyContrib = includeOther ? getTotalOtherSchemeMonthlyContribution(data) : 0
+  const otherMonthlyContrib = Math.min(Math.max(0, rawOtherMonthlyContrib), Math.max(0, monthlyIncome))
+  const totalMonthlyContribution = monthlyContrib + otherMonthlyContrib
+  const totalCorpus = npsCorpus + otherSavings
+
   const equityPct          = parseFloat(data.npsEquity) || 50
   const {
     lifestyle,
@@ -184,18 +247,27 @@ export function calculateRetirement(data) {
     monthlySpendToday,
   } = resolveLifestyleInputs(data, monthlyIncome)
 
-  // Blended annual return
-  const annualReturn = computeBlendedReturn(equityPct, age)
-  const r = annualReturn / 12   // monthly rate
+  const npsAnnualReturn = computeBlendedReturn(equityPct, age)
+  const otherAnnualReturn = includeOther ? getOtherSchemeAnnualReturn(data) : OTHER_SCHEME_DEFAULT_RETURN
+
+  const npsWeight = npsCorpus + (monthlyContrib * 12)
+  const otherWeight = otherSavings + (otherMonthlyContrib * 12)
+  const totalWeight = npsWeight + otherWeight
+
+  const annualReturn = totalWeight > 0
+    ? ((npsAnnualReturn * npsWeight) + (otherAnnualReturn * otherWeight)) / totalWeight
+    : npsAnnualReturn
+
+  const r = annualReturn / 12
 
   // ── PROJECTED VALUE ──
-  // FV of existing corpus
-  const fvCorpus = totalCorpus * Math.pow(1 + r, n)
-  // FV of monthly contributions (ordinary annuity)
-  const fvContributions = monthlyContrib > 0
-    ? monthlyContrib * (Math.pow(1 + r, n) - 1) / r
+  const projectedNpsValue = includeNps
+    ? computeFutureValue(npsCorpus, monthlyContrib, npsAnnualReturn / 12, n)
     : 0
-  const projectedValue = fvCorpus + fvContributions
+  const projectedOtherValue = includeOther
+    ? computeFutureValue(otherSavings, otherMonthlyContrib, otherAnnualReturn / 12, n)
+    : 0
+  const projectedValue = projectedNpsValue + projectedOtherValue
 
   // ── REQUIRED CORPUS ──
   // Inflation-adjusted monthly spend at retirement
@@ -231,13 +303,23 @@ export function calculateRetirement(data) {
   return {
     // Inputs (pass-through for convenience)
     age, retireAge, years, monthlyIncome,
-    monthlyContrib, totalCorpus, equityPct, lifestyle,
+    retirementMode,
+    monthlyContrib,
+    otherMonthlyContrib,
+    totalMonthlyContribution,
+    totalCorpus,
+    npsCorpusUsed: npsCorpus,
+    otherSavingsUsed: otherSavings,
+    combinedSavingsUsed: totalCorpus,
+    equityPct, lifestyle,
     lifestyleMode,
     lifestyleConfig,
     monthlySpendToday,
 
     // Core outputs
     projectedValue,
+    projectedNpsValue,
+    projectedOtherValue,
     requiredCorpus,
     score,
     scorePrecise,
@@ -255,6 +337,8 @@ export function calculateRetirement(data) {
     // Meta
     blendedReturn,
     annualReturn,
+    npsAnnualReturn,
+    otherAnnualReturn,
     lifestyleMultiplier,
     n, r,
   }
@@ -263,6 +347,7 @@ export function calculateRetirement(data) {
 // ── WHAT-IF SCENARIOS ───────────────────────
 export function computeWhatIfScenarios(userData) {
   const base = calculateRetirement(userData)
+  const activeMode = base.retirementMode
   const activeLifestyle = normalizeLifestyleConfig(
     userData?.lifestyleConfig,
     userData?.lifestyle || 'comfortable'
@@ -273,40 +358,96 @@ export function computeWhatIfScenarios(userData) {
     ? 'comfortable'
     : 'essential'
 
-  const scenarios = [
+  const npsScenarios = [
     {
       id: 'contribute_more',
-      title: 'Contribute ₹2,000 more/month',
-      description: 'Increase focus on short-term delta',
+      title: 'Contribute ₹2,000 more/month to NPS',
+      description: 'Increase your retirement flow in NPS',
+      overrides: { npsContribution: (parseFloat(userData.npsContribution) || 0) + 2000 },
       score: calculateRetirement({
         ...userData,
-        npsContribution: (parseFloat(userData.npsContribution) || 0) + 2000
-      }).score
+        npsContribution: (parseFloat(userData.npsContribution) || 0) + 2000,
+      }).score,
     },
     {
       id: 'step_up',
-      title: 'Enable 10% annual step-up',
-      description: 'Grow with your salary hikes',
+      title: 'Enable 10% annual step-up in NPS',
+      description: 'Grow NPS contributions with salary hikes',
+      overrides: { stepUp: 0.10 },
       score: (() => {
         const d = calculateRetirement(userData)
         const fvStepUp = computeStepUpFV(
           parseFloat(userData.npsContribution) || 0,
-          d.annualReturn,
+          d.npsAnnualReturn,
           d.years
         )
-        const fvCorpus = d.totalCorpus * Math.pow(1 + d.r, d.n)
-        const pv = fvCorpus + fvStepUp
+        const npsCorpus = parseAmount(userData.npsCorpus)
+        const npsRate = d.npsAnnualReturn / 12
+        const fvCorpus = npsCorpus * Math.pow(1 + npsRate, d.n)
+        const pv = fvCorpus + fvStepUp + (activeMode === RETIREMENT_MODES.HYBRID ? d.projectedOtherValue || 0 : 0)
         return Math.min(100, Math.round((pv / d.requiredCorpus) * 100))
-      })()
+      })(),
     },
+    {
+      id: 'max_equity',
+      title: `Max NPS equity to ${getMaxEquityPct(parseInt(userData.age) || 30)}%`,
+      description: 'Optimize NPS mix for higher long-term return',
+      overrides: { npsEquity: getMaxEquityPct(parseInt(userData.age) || 30) },
+      score: calculateRetirement({
+        ...userData,
+        npsEquity: getMaxEquityPct(parseInt(userData.age) || 30),
+      }).score,
+    },
+    {
+      id: 'lump_sum_nps',
+      title: 'Add ₹1L to NPS corpus',
+      description: 'Immediate NPS corpus boost',
+      overrides: { npsCorpus: (parseFloat(userData.npsCorpus) || 0) + 100000 },
+      score: calculateRetirement({
+        ...userData,
+        npsCorpus: (parseFloat(userData.npsCorpus) || 0) + 100000,
+      }).score,
+    },
+  ]
+
+  const otherContributionBoost = buildOtherContributionBoost(userData, 2000)
+  const otherScenarios = [
+    {
+      id: 'increase_other_monthly',
+      title: 'Invest ₹2,000 more/month in other schemes',
+      description: 'Increase SIP/PPF/EPF monthly flow',
+      overrides: otherContributionBoost,
+      score: calculateRetirement({
+        ...userData,
+        ...otherContributionBoost,
+      }).score,
+    },
+    {
+      id: 'lump_sum_other',
+      title: 'Add ₹1L to other savings',
+      description: 'Boost your non-NPS savings corpus',
+      overrides: {
+        addSavings: true,
+        totalSavings: (parseFloat(userData.totalSavings) || 0) + 100000,
+      },
+      score: calculateRetirement({
+        ...userData,
+        addSavings: true,
+        totalSavings: (parseFloat(userData.totalSavings) || 0) + 100000,
+      }).score,
+    },
+  ]
+
+  const commonScenarios = [
     {
       id: 'retire_later',
       title: 'Retire 2 years later',
       description: 'Power of compounding time',
+      overrides: { retireAge: (parseInt(userData.retireAge) || 60) + 2 },
       score: calculateRetirement({
         ...userData,
-        retireAge: (parseInt(userData.retireAge) || 60) + 2
-      }).score
+        retireAge: (parseInt(userData.retireAge) || 60) + 2,
+      }).score,
     },
     {
       id: 'lifestyle_switch',
@@ -316,6 +457,14 @@ export function computeWhatIfScenarios(userData) {
         ? 'Switch to Comfortable lifestyle'
         : 'Switch to Essential lifestyle',
       description: 'Adjust standard of living',
+      overrides: {
+        lifestyle: scenarioLifestyle,
+        lifestyleConfig: {
+          ...normalizeLifestyleConfig(userData?.lifestyleConfig, activeLifestyle),
+          mode: LIFESTYLE_MODES.PRESET,
+          preset: scenarioLifestyle,
+        },
+      },
       score: calculateRetirement({
         ...userData,
         lifestyle: scenarioLifestyle,
@@ -323,28 +472,33 @@ export function computeWhatIfScenarios(userData) {
           ...normalizeLifestyleConfig(userData?.lifestyleConfig, activeLifestyle),
           mode: LIFESTYLE_MODES.PRESET,
           preset: scenarioLifestyle,
-        }
-      }).score
-    },
-    {
-      id: 'lump_sum',
-      title: 'Add ₹1L lump sum today',
-      description: 'Immediate corpus injection',
-      score: calculateRetirement({
-        ...userData,
-        npsCorpus: (parseFloat(userData.npsCorpus) || 0) + 100000
-      }).score
-    },
-    {
-      id: 'max_equity',
-      title: `Max equity to ${getMaxEquityPct(parseInt(userData.age) || 30)}%`,
-      description: 'Optimize for higher risk/reward',
-      score: calculateRetirement({
-        ...userData,
-        npsEquity: getMaxEquityPct(parseInt(userData.age) || 30)
-      }).score
+        },
+      }).score,
     },
   ]
+
+  const recommendNpsScenario = {
+    id: 'start_nps',
+    title: 'Start NPS with ₹2,000/month',
+    description: 'Government-backed pension layer + tax efficiency',
+    overrides: {
+      retirementMode: RETIREMENT_MODES.HYBRID,
+      npsUsage: 'manual',
+      npsContribution: (parseFloat(userData.npsContribution) || 0) + 2000,
+    },
+    score: calculateRetirement({
+      ...userData,
+      retirementMode: RETIREMENT_MODES.HYBRID,
+      npsUsage: 'manual',
+      npsContribution: (parseFloat(userData.npsContribution) || 0) + 2000,
+    }).score,
+  }
+
+  const scenarios = activeMode === RETIREMENT_MODES.NPS_ONLY
+    ? [...npsScenarios, ...commonScenarios]
+    : activeMode === RETIREMENT_MODES.NON_NPS_ONLY
+    ? [...otherScenarios, ...commonScenarios, recommendNpsScenario]
+    : [...npsScenarios.slice(0, 2), ...otherScenarios, ...commonScenarios]
 
   return scenarios.map(s => ({
     ...s,

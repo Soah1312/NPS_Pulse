@@ -12,6 +12,12 @@ import {
   LIFESTYLE_MULTIPLIERS,
   normalizeLifestyleConfig,
 } from '../constants/lifestyleConfig.js';
+import {
+  OTHER_SCHEME_CONFIGS,
+  RETIREMENT_MODES,
+  SCHEME_ASSUMPTION_BASIS,
+  formatAnnualReturnPct,
+} from '../constants/investmentSchemes.js';
 
 const COLORS = {
   bg: '#FFFDF5',
@@ -30,6 +36,7 @@ const MAX_NPS_CONTRIBUTION = 100000000; // 10 Cr
 const MAX_NPS_CORPUS = 1000000000; // 100 Cr
 const MAX_TAX_INPUT = 10000000; // 1 Cr
 const MAX_CUSTOM_LIFESTYLE_SPEND = 10000000; // 1 Cr
+const MAX_SCHEME_MONTHLY_CONTRIBUTION = 100000000; // 10 Cr
 
 const parseNumericInput = (value) => {
   if (typeof value === 'number') {
@@ -198,6 +205,7 @@ export default function Onboarding() {
     age: '',
     workContext: '',
     monthlyIncome: '',
+    retirementMode: '',
     npsUsage: '',
     npsContribution: '',
     npsCorpus: '',
@@ -205,7 +213,16 @@ export default function Onboarding() {
     customLifestyleMonthlySpend: '',
     lifestyle: '',
     totalSavings: '',
+    ppfMonthlyContribution: '',
+    epfVpfMonthlyContribution: '',
+    mfSipMonthlyContribution: '',
+    stocksEtfMonthlyContribution: '',
+    fdRdMonthlyContribution: '',
+    otherSchemeMonthlyContribution: '',
   });
+
+  const includesNps = formData.retirementMode === RETIREMENT_MODES.NPS_ONLY || formData.retirementMode === RETIREMENT_MODES.HYBRID;
+  const includesOtherSchemes = formData.retirementMode === RETIREMENT_MODES.NON_NPS_ONLY || formData.retirementMode === RETIREMENT_MODES.HYBRID;
 
   const clearErrorsForFields = (fields) => {
     setErrors((prev) => {
@@ -286,12 +303,22 @@ export default function Onboarding() {
   const validateNps = (data, parsed) => {
     const nextErrors = {};
 
+    if (data.retirementMode === RETIREMENT_MODES.NON_NPS_ONLY) {
+      return nextErrors;
+    }
+
+    if (!data.retirementMode) {
+      nextErrors.retirementMode = 'Choose your retirement setup';
+      return nextErrors;
+    }
+
     if (!data.npsUsage) {
       nextErrors.npsUsage = 'Choose your NPS usage option';
       return nextErrors;
     }
 
     if (data.npsUsage === 'none') {
+      nextErrors.npsUsage = 'Select upload or manual NPS input for this mode';
       return nextErrors;
     }
 
@@ -311,6 +338,29 @@ export default function Onboarding() {
     } else if (corpus >= MAX_NPS_CORPUS) {
       nextErrors.npsCorpus = 'NPS corpus is too large (sanity cap exceeded)';
     }
+
+    return nextErrors;
+  };
+
+  const validateOtherSchemes = (data, parsed) => {
+    const nextErrors = {};
+
+    if (data.retirementMode === RETIREMENT_MODES.NPS_ONLY) {
+      return nextErrors;
+    }
+
+    const totalSavings = parsed.totalSavings;
+    if (!(totalSavings > 0)) {
+      nextErrors.totalSavings = 'Add your approximate current savings';
+    }
+
+    const selectedSchemes = OTHER_SCHEME_CONFIGS.filter((scheme) => Boolean(data[scheme.toggleField]));
+    selectedSchemes.forEach((scheme) => {
+      const value = parsed[scheme.monthlyField];
+      if (!(value > 0)) {
+        nextErrors[scheme.monthlyField] = `Add monthly contribution for ${scheme.label}`;
+      }
+    });
 
     return nextErrors;
   };
@@ -351,12 +401,18 @@ export default function Onboarding() {
       ...validateStep1(data),
       ...validateIncome(data),
       ...validateNps(data, parsed),
+      ...validateOtherSchemes(data, parsed),
       ...validateLifestyleStep(data),
     };
   };
 
   const parsedData = useMemo(() => {
     const monthlyIncome = parseNumericInput(formData.monthlyIncome) || 0;
+    const retirementMode = Object.values(RETIREMENT_MODES).includes(formData.retirementMode)
+      ? formData.retirementMode
+      : RETIREMENT_MODES.NPS_ONLY;
+    const modeIncludesNps = retirementMode === RETIREMENT_MODES.NPS_ONLY || retirementMode === RETIREMENT_MODES.HYBRID;
+    const modeIncludesOther = retirementMode === RETIREMENT_MODES.NON_NPS_ONLY || retirementMode === RETIREMENT_MODES.HYBRID;
     const lifestyle = (formData.lifestyle || 'comfortable').toLowerCase();
     const lifestyleMode = formData.lifestyleMode === LIFESTYLE_MODES.CUSTOM
       ? LIFESTYLE_MODES.CUSTOM
@@ -368,9 +424,28 @@ export default function Onboarding() {
       ...formData,
       age: parseIntegerInput(formData.age, 28),
       monthlyIncome,
-      npsContribution: formData.npsUsage === 'none' ? 0 : (parseNumericInput(formData.npsContribution) || (formData.npsUsage === 'upload' ? 4500 : 0)),
-      npsCorpus: formData.npsUsage === 'none' ? 0 : (parseNumericInput(formData.npsCorpus) || (formData.npsUsage === 'upload' ? 120000 : 0)),
-      totalSavings: parseNumericInput(formData.totalSavings) || 0,
+      retirementMode,
+      npsUsage: modeIncludesNps ? (formData.npsUsage || 'manual') : 'none',
+      npsContribution: modeIncludesNps
+        ? (parseNumericInput(formData.npsContribution) || ((formData.npsUsage || 'manual') === 'upload' ? 4500 : 0))
+        : 0,
+      npsCorpus: modeIncludesNps
+        ? (parseNumericInput(formData.npsCorpus) || ((formData.npsUsage || 'manual') === 'upload' ? 120000 : 0))
+        : 0,
+      addSavings: modeIncludesOther,
+      totalSavings: modeIncludesOther ? (parseNumericInput(formData.totalSavings) || 0) : 0,
+      usesPPF: modeIncludesOther ? Boolean(formData.usesPPF) : false,
+      ppfMonthlyContribution: modeIncludesOther ? Math.min(parseNumericInput(formData.ppfMonthlyContribution) || 0, MAX_SCHEME_MONTHLY_CONTRIBUTION) : 0,
+      usesEPFVPF: modeIncludesOther ? Boolean(formData.usesEPFVPF) : false,
+      epfVpfMonthlyContribution: modeIncludesOther ? Math.min(parseNumericInput(formData.epfVpfMonthlyContribution) || 0, MAX_SCHEME_MONTHLY_CONTRIBUTION) : 0,
+      usesMFSIP: modeIncludesOther ? Boolean(formData.usesMFSIP) : false,
+      mfSipMonthlyContribution: modeIncludesOther ? Math.min(parseNumericInput(formData.mfSipMonthlyContribution) || 0, MAX_SCHEME_MONTHLY_CONTRIBUTION) : 0,
+      usesStocksETF: modeIncludesOther ? Boolean(formData.usesStocksETF) : false,
+      stocksEtfMonthlyContribution: modeIncludesOther ? Math.min(parseNumericInput(formData.stocksEtfMonthlyContribution) || 0, MAX_SCHEME_MONTHLY_CONTRIBUTION) : 0,
+      usesFDRD: modeIncludesOther ? Boolean(formData.usesFDRD) : false,
+      fdRdMonthlyContribution: modeIncludesOther ? Math.min(parseNumericInput(formData.fdRdMonthlyContribution) || 0, MAX_SCHEME_MONTHLY_CONTRIBUTION) : 0,
+      usesOtherScheme: modeIncludesOther ? Boolean(formData.usesOtherScheme) : false,
+      otherSchemeMonthlyContribution: modeIncludesOther ? Math.min(parseNumericInput(formData.otherSchemeMonthlyContribution) || 0, MAX_SCHEME_MONTHLY_CONTRIBUTION) : 0,
       retireAge: parseIntegerInput(formData.retireAge, 60),
       lifestyle,
       lifestyleMode,
@@ -398,6 +473,19 @@ export default function Onboarding() {
   }, [formData]);
 
   const results = useMemo(() => calculateRetirement(parsedData), [parsedData]);
+  const growthProjectionLabel = includesNps && includesOtherSchemes
+    ? 'NPS + scheme growth projection'
+    : includesNps
+    ? 'NPS growth projection'
+    : 'Scheme growth projection';
+  const selectedSchemeConfigs = useMemo(
+    () => OTHER_SCHEME_CONFIGS.filter((scheme) => Boolean(formData?.[scheme.toggleField])),
+    [formData]
+  );
+  const selectedSchemeMonthlyTotal = useMemo(
+    () => selectedSchemeConfigs.reduce((sum, scheme) => sum + (parseNumericInput(formData?.[scheme.monthlyField]) || 0), 0),
+    [selectedSchemeConfigs, formData]
+  );
 
   useEffect(() => {
     document.title = "RetireSahi | Onboarding";
@@ -437,7 +525,7 @@ export default function Onboarding() {
 
     if (step === 1) clearErrorsForFields(['firstName', 'age', 'retireAge']);
     if (step === 3) clearErrorsForFields(['monthlyIncome']);
-    if (step === 4) clearErrorsForFields(['npsUsage', 'npsContribution', 'npsCorpus']);
+    if (step === 4) clearErrorsForFields(['retirementMode', 'npsUsage', 'npsContribution', 'npsCorpus']);
     if (step === 5) clearErrorsForFields(['age', 'retireAge']);
     if (step === 6) clearErrorsForFields(['lifestyleMode', 'lifestyle', 'customLifestyleMonthlySpend']);
 
@@ -592,31 +680,68 @@ export default function Onboarding() {
 
             {step === 4 && (
               <div className="animate-fade-in space-y-4">
-                <h2 className="font-heading font-extrabold text-2xl md:text-3xl leading-tight text-center">Do you already invest in NPS?</h2>
-                <button 
-                  onClick={() => setFormData({...formData, npsUsage: 'upload'})}
-                  className={`w-full p-4 mt-2 text-left border-2 rounded-xl flex items-center gap-4 transition-all cubic cursor-pointer ${formData.npsUsage === 'upload' ? 'bg-[#34D399] border-[#1E293B] shadow-[4px_4px_0_0_#1E293B] -translate-y-1' : 'bg-white border-[#1E293B] shadow-[2px_2px_0_0_#1E293B] hover:-translate-y-1 hover:shadow-[4px_4px_0_0_#1E293B]'}`}
-                >
-                  <div className="w-10 h-10 rounded-full bg-white border-2 border-[#1E293B] flex items-center justify-center shrink-0">
-                    <Upload className="w-5 h-5 text-[#34D399]" />
-                  </div>
-                  <div>
-                    <div className="font-bold text-lg leading-tight text-[#1E293B]">Upload my NPS statement</div>
-                    <div className={`text-xs font-bold mt-1 ${formData.npsUsage === 'upload' ? 'text-black' : 'text-[#1E293B]/60'}`}>Recommended. We'll extract contributions instantly.</div>
-                  </div>
-                </button>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <CardOption label="Enter manually" selected={formData.npsUsage === 'manual'} onClick={() => setFormData({...formData, npsUsage: 'manual'})} />
-                  <CardOption label="Don't use NPS" selected={formData.npsUsage === 'none'} onClick={() => setFormData({...formData, npsUsage: 'none'})} />
+                <h2 className="font-heading font-extrabold text-2xl md:text-3xl leading-tight text-center">How do you invest for retirement today?</h2>
+                <p className="text-center text-xs font-bold uppercase tracking-widest text-[#1E293B]/50">Pick what matches you now. You can switch anytime in settings.</p>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <button
+                    onClick={() => setFormData({ ...formData, retirementMode: RETIREMENT_MODES.NPS_ONLY, npsUsage: formData.npsUsage === 'none' ? 'manual' : (formData.npsUsage || 'manual') })}
+                    className={`p-4 rounded-xl border-2 border-[#1E293B] text-left transition-all ${formData.retirementMode === RETIREMENT_MODES.NPS_ONLY ? 'bg-[#8B5CF6] text-white shadow-[4px_4px_0_0_#1E293B] -translate-y-1' : 'bg-white text-[#1E293B] hover:-translate-y-1 hover:shadow-[4px_4px_0_0_#1E293B]'}`}
+                  >
+                    <div className="font-black uppercase tracking-widest text-xs mb-1">NPS Only</div>
+                    <div className={`text-[10px] font-bold ${formData.retirementMode === RETIREMENT_MODES.NPS_ONLY ? 'text-white/80' : 'text-[#1E293B]/60'}`}>Use only NPS for score calculations</div>
+                  </button>
+                  <button
+                    onClick={() => setFormData({ ...formData, retirementMode: RETIREMENT_MODES.NON_NPS_ONLY, npsUsage: 'none' })}
+                    className={`p-4 rounded-xl border-2 border-[#1E293B] text-left transition-all ${formData.retirementMode === RETIREMENT_MODES.NON_NPS_ONLY ? 'bg-[#34D399] text-[#1E293B] shadow-[4px_4px_0_0_#1E293B] -translate-y-1' : 'bg-white text-[#1E293B] hover:-translate-y-1 hover:shadow-[4px_4px_0_0_#1E293B]'}`}
+                  >
+                    <div className="font-black uppercase tracking-widest text-xs mb-1">Non-NPS Only</div>
+                    <div className="text-[10px] font-bold text-[#1E293B]/60">Use PPF/EPF/MF/other schemes</div>
+                  </button>
+                  <button
+                    onClick={() => setFormData({ ...formData, retirementMode: RETIREMENT_MODES.HYBRID, npsUsage: formData.npsUsage === 'none' ? 'manual' : (formData.npsUsage || 'manual') })}
+                    className={`p-4 rounded-xl border-2 border-[#1E293B] text-left transition-all ${formData.retirementMode === RETIREMENT_MODES.HYBRID ? 'bg-[#FBBF24] text-[#1E293B] shadow-[4px_4px_0_0_#1E293B] -translate-y-1' : 'bg-white text-[#1E293B] hover:-translate-y-1 hover:shadow-[4px_4px_0_0_#1E293B]'}`}
+                  >
+                    <div className="font-black uppercase tracking-widest text-xs mb-1">NPS + Other</div>
+                    <div className="text-[10px] font-bold text-[#1E293B]/60">Combine NPS with other investments</div>
+                  </button>
                 </div>
-                
-                {formData.npsUsage === 'manual' && (
-                  <div className="animate-fade-in space-y-4 pt-4 border-t-2 border-dashed border-[#1E293B]/20">
-                    <p className="text-xs font-bold uppercase tracking-widest text-[#1E293B]/60 text-center">Tier I is your main retirement account</p>
-                    <div className="grid grid-cols-2 gap-4">
-                        <InputField label="Monthly (₹)" type="number" name="npsContribution" value={formData.npsContribution} onChange={handleChange} placeholder="5,00,000" error={errors.npsContribution} />
-                        <InputField label="Total Corpus (₹)" type="number" name="npsCorpus" value={formData.npsCorpus} onChange={handleChange} placeholder="1.2L" error={errors.npsCorpus} />
+                {errors.retirementMode && (
+                  <p className="text-xs font-bold text-[#EF4444] uppercase tracking-wide text-center">{errors.retirementMode}</p>
+                )}
+
+                {includesNps ? (
+                  <>
+                    <button
+                      onClick={() => setFormData({ ...formData, npsUsage: 'upload' })}
+                      className={`w-full p-4 mt-2 text-left border-2 rounded-xl flex items-center gap-4 transition-all cubic cursor-pointer ${formData.npsUsage === 'upload' ? 'bg-[#34D399] border-[#1E293B] shadow-[4px_4px_0_0_#1E293B] -translate-y-1' : 'bg-white border-[#1E293B] shadow-[2px_2px_0_0_#1E293B] hover:-translate-y-1 hover:shadow-[4px_4px_0_0_#1E293B]'}`}
+                    >
+                      <div className="w-10 h-10 rounded-full bg-white border-2 border-[#1E293B] flex items-center justify-center shrink-0">
+                        <Upload className="w-5 h-5 text-[#34D399]" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-lg leading-tight text-[#1E293B]">Upload my NPS statement</div>
+                        <div className={`text-xs font-bold mt-1 ${formData.npsUsage === 'upload' ? 'text-black' : 'text-[#1E293B]/60'}`}>Recommended for faster onboarding.</div>
+                      </div>
+                    </button>
+
+                    <div className="grid grid-cols-1 gap-3">
+                      <CardOption label="Enter NPS details manually" selected={formData.npsUsage === 'manual'} onClick={() => setFormData({ ...formData, npsUsage: 'manual' })} />
                     </div>
+
+                    {formData.npsUsage === 'manual' && (
+                      <div className="animate-fade-in space-y-4 pt-4 border-t-2 border-dashed border-[#1E293B]/20">
+                        <p className="text-xs font-bold uppercase tracking-widest text-[#1E293B]/60 text-center">Tier I is your main retirement account</p>
+                        <div className="grid grid-cols-2 gap-4">
+                          <InputField label="Monthly (₹)" type="number" name="npsContribution" value={formData.npsContribution} onChange={handleChange} placeholder="5,000" error={errors.npsContribution} />
+                          <InputField label="Total Corpus (₹)" type="number" name="npsCorpus" value={formData.npsCorpus} onChange={handleChange} placeholder="1,20,000" error={errors.npsCorpus} />
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="bg-[#FFFDF5] border-2 border-[#1E293B] p-4 rounded-xl text-sm font-bold text-[#1E293B]/70 uppercase tracking-widest">
+                    Non-NPS mode selected. Next we will capture your current savings plus monthly scheme contributions.
                   </div>
                 )}
               </div>
@@ -769,22 +894,73 @@ export default function Onboarding() {
 
             {step === 8 && (
               <div className="animate-fade-in space-y-6 pt-2 text-center">
-                 <h2 className="font-heading font-extrabold text-2xl md:text-3xl leading-tight">Want a more accurate score?</h2>
-                 <p className="font-bold text-[#1E293B]/60 uppercase tracking-widest text-sm">Add your details (Optional)</p>
+                 <h2 className="font-heading font-extrabold text-2xl md:text-3xl leading-tight">Lock your retirement input details</h2>
+                 <p className="font-bold text-[#1E293B]/60 uppercase tracking-widest text-sm">Add realistic values now, then fine-tune later in Settings</p>
                  
                  <div className="bg-white border-2 border-[#1E293B] rounded-2xl p-6 text-left space-y-6 pop-shadow">
-                    <div>
-                      <p className="font-bold text-[#1E293B]/60 uppercase tracking-widest text-xs mb-3">Add other savings (MF, EPF, etc.)</p>
-                      <div className="grid grid-cols-2 gap-3">
-                         <button onClick={() => setFormData({...formData, addSavings: false})} className={`py-3 rounded-xl border-2 border-[#1E293B] font-black uppercase tracking-widest text-xs ${!formData.addSavings ? 'bg-[#1E293B] text-white shadow-[3px_3px_0_0_#FBBF24]' : 'bg-white text-[#1E293B]'}`}>Skip</button>
-                         <button onClick={() => setFormData({...formData, addSavings: true})} className={`py-3 rounded-xl border-2 border-[#1E293B] font-black uppercase tracking-widest text-xs ${formData.addSavings ? 'bg-[#34D399] text-[#1E293B] shadow-[3px_3px_0_0_#1E293B]' : 'bg-white text-[#1E293B]'}`}>Add</button>
-                      </div>
-                      {formData.addSavings && (
-                        <div className="mt-4 animate-scale-up">
-                          <InputField label="Total Savings (₹)" type="number" name="totalSavings" value={formData.totalSavings} onChange={handleChange} placeholder="5,00,000" />
+                    {includesOtherSchemes ? (
+                      <div className="space-y-5">
+                        <div>
+                          <p className="font-bold text-[#1E293B]/60 uppercase tracking-widest text-xs mb-2">Approximate current savings</p>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-[#1E293B]/40 mb-3">Tag: You can change this later in Settings</p>
+                          <InputField label="Other Savings Corpus (₹)" type="number" name="totalSavings" value={formData.totalSavings} onChange={handleChange} placeholder="5,00,000" helper="Include only retirement-directed assets (exclude emergency fund)." error={errors.totalSavings} />
                         </div>
-                      )}
-                    </div>
+
+                        <div className="space-y-3">
+                          <p className="font-bold text-[#1E293B]/60 uppercase tracking-widest text-xs">Select schemes you invest in monthly</p>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-[#1E293B]/40">Assumption basis: {SCHEME_ASSUMPTION_BASIS}</p>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                            {OTHER_SCHEME_CONFIGS.map((scheme) => (
+                              <button
+                                key={scheme.id}
+                                type="button"
+                                onClick={() => setFormData({ ...formData, [scheme.toggleField]: !formData[scheme.toggleField] })}
+                                className={`py-3 px-2 rounded-xl border-2 border-[#1E293B] font-black uppercase tracking-widest text-[10px] transition-all flex flex-col items-center gap-1 ${formData[scheme.toggleField] ? 'bg-[#34D399] text-[#1E293B] shadow-[3px_3px_0_0_#1E293B]' : 'bg-white text-[#1E293B]'}`}
+                              >
+                                <span>{scheme.label}</span>
+                                <span className="text-[9px] tracking-normal normal-case opacity-75">Assume {formatAnnualReturnPct(scheme.annualReturn)} p.a.</span>
+                              </button>
+                            ))}
+                          </div>
+                          {selectedSchemeConfigs.length === 0 && (
+                            <p className="text-[10px] font-black uppercase tracking-widest text-[#EF4444]">Select at least one monthly scheme to model growth accurately.</p>
+                          )}
+                        </div>
+
+                        {selectedSchemeConfigs.length > 0 && (
+                          <div className="bg-[#FFFDF5] border-2 border-[#1E293B] rounded-xl p-3 grid grid-cols-2 gap-3">
+                            <div>
+                              <div className="text-[9px] font-black uppercase tracking-widest text-[#1E293B]/40">Schemes selected</div>
+                              <div className="font-heading font-black text-xl text-[#1E293B]">{selectedSchemeConfigs.length}</div>
+                            </div>
+                            <div>
+                              <div className="text-[9px] font-black uppercase tracking-widest text-[#1E293B]/40">Total monthly input</div>
+                              <div className="font-heading font-black text-xl text-[#1E293B]">₹{Math.round(selectedSchemeMonthlyTotal).toLocaleString('en-IN')}</div>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="space-y-4">
+                          {selectedSchemeConfigs.map((scheme) => (
+                            <InputField
+                              key={scheme.id}
+                              label={`${scheme.label} Monthly Contribution (₹)`}
+                              type="number"
+                              name={scheme.monthlyField}
+                              value={formData[scheme.monthlyField]}
+                              onChange={handleChange}
+                              placeholder="2,000"
+                              helper={`Model assumption: ${formatAnnualReturnPct(scheme.annualReturn)} p.a. (${scheme.assumptionLabel})`}
+                              error={errors[scheme.monthlyField]}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-[#FFFDF5] border-2 border-[#1E293B] p-4 rounded-xl text-xs font-bold text-[#1E293B]/70 uppercase tracking-widest">
+                        NPS-only mode selected. Score will use NPS corpus and NPS monthly contribution only.
+                      </div>
+                    )}
 
                     <div>
                       <p className="font-bold text-[#1E293B]/60 uppercase tracking-widest text-xs mb-3">Tax Regime (Default: New)</p>
@@ -805,7 +981,7 @@ export default function Onboarding() {
                   (step === 1 && (!formData.firstName || !formData.age)) ||
                   (step === 2 && !formData.workContext) ||
                   (step === 3 && !formData.monthlyIncome) ||
-                  (step === 4 && !formData.npsUsage) ||
+                  (step === 4 && (!formData.retirementMode || (includesNps && !formData.npsUsage))) ||
                   (step === 6 && (
                     !formData.lifestyleMode ||
                     !formData.lifestyle ||
@@ -829,7 +1005,7 @@ export default function Onboarding() {
            <div className="space-y-6 w-full max-w-sm px-4">
              {[
                { idx: 0, text: 'Income analysis' },
-               { idx: 1, text: 'NPS growth projection' },
+               { idx: 1, text: growthProjectionLabel },
                { idx: 2, text: 'Inflation adjustment' },
                { idx: 3, text: 'Lifestyle mapping' }
              ].map(item => (

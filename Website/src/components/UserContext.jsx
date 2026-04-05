@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react';
 import { createDefaultLifestyleConfig, normalizeLifestyleConfig } from '../constants/lifestyleConfig.js';
+import { RETIREMENT_MODES, inferRetirementMode } from '../constants/investmentSchemes.js';
 
 export const UserContext = createContext();
 
@@ -8,6 +9,7 @@ export const INITIAL_USER_DATA = {
   age: '',
   workContext: '',
   monthlyIncome: '',
+  retirementMode: '',
   npsUsage: '',
   npsContribution: '',
   npsCorpus: '',
@@ -17,6 +19,25 @@ export const INITIAL_USER_DATA = {
   lifestyleConfig: createDefaultLifestyleConfig('comfortable'),
   addSavings: false,
   totalSavings: '',
+  usesPPF: false,
+  ppfMonthlyContribution: '',
+  usesEPFVPF: false,
+  epfVpfMonthlyContribution: '',
+  usesMFSIP: false,
+  mfSipMonthlyContribution: '',
+  usesStocksETF: false,
+  stocksEtfMonthlyContribution: '',
+  usesFDRD: false,
+  fdRdMonthlyContribution: '',
+  usesOtherScheme: false,
+  otherSchemeMonthlyContribution: '',
+  customSchemeAssumptionsEnabled: false,
+  ppfAssumedReturnPct: 7.1,
+  epfVpfAssumedReturnPct: 8.25,
+  mfSipAssumedReturnPct: 10.5,
+  stocksEtfAssumedReturnPct: 11,
+  fdRdAssumedReturnPct: 6.75,
+  otherSchemeAssumedReturnPct: 8,
   taxRegime: 'new',
   homeLoanInterest: 0,
   lifeInsurance_80C: 0,
@@ -38,9 +59,13 @@ export const withInitialUserData = (userData) => {
   };
 
   const fallbackLifestyle = merged.lifestyle?.trim()?.toLowerCase() || 'comfortable';
+  const knownMode = Object.values(RETIREMENT_MODES).includes(merged.retirementMode)
+    ? merged.retirementMode
+    : inferRetirementMode(merged);
 
   return {
     ...merged,
+    retirementMode: knownMode,
     lifestyle: fallbackLifestyle,
     lifestyleConfig: normalizeLifestyleConfig(merged.lifestyleConfig, fallbackLifestyle),
   };

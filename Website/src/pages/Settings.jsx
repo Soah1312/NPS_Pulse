@@ -13,6 +13,16 @@ import { useUser } from '../components/UserContext';
 import InfoTooltip from '../components/InfoTooltip';
 import { SETTINGS_TIPS } from '../constants/tooltips';
 import { encryptUserData } from '../utils/encryption';
+import {
+  OTHER_SCHEME_CONFIGS,
+  RETIREMENT_MODES,
+  SCHEME_ASSUMPTION_BASIS,
+  ASSUMED_RETURN_MIN_PCT,
+  ASSUMED_RETURN_MAX_PCT,
+  inferRetirementMode,
+  getSchemeAssumedReturnPct,
+  normalizeAssumedReturnPct,
+} from '../constants/investmentSchemes.js';
 
 const SectionHeader = ({ icon: Icon, title, editing, onEdit, color }) => (
   <div className="flex items-center justify-between py-6 px-8 border-b border-[#1E293B]/5 transition-all">
@@ -99,17 +109,54 @@ const PageContent = () => {
     return Math.floor(parsed);
   };
 
-  const toParsedData = (source) => ({
-    ...source,
-    age: parseIntegerInput(source.age, 28),
-    monthlyIncome: parseNumericInput(source.monthlyIncome),
-    npsContribution: parseNumericInput(source.npsContribution),
-    npsCorpus: parseNumericInput(source.npsCorpus),
-    totalSavings: parseNumericInput(source.totalSavings),
-    retireAge: parseIntegerInput(source.retireAge, 60),
-    stepUp: parseNumericInput(source.stepUp),
-    npsEquity: parseNumericInput(source.npsEquity) || 50,
-  });
+  const normalizeRetirementMode = (source) => {
+    if (Object.values(RETIREMENT_MODES).includes(source?.retirementMode)) {
+      return source.retirementMode;
+    }
+    return inferRetirementMode(source);
+  };
+
+  const includesNpsForMode = (mode) => mode === RETIREMENT_MODES.NPS_ONLY || mode === RETIREMENT_MODES.HYBRID;
+  const includesOtherForMode = (mode) => mode === RETIREMENT_MODES.NON_NPS_ONLY || mode === RETIREMENT_MODES.HYBRID;
+
+  const toParsedData = (source) => {
+    const retirementMode = normalizeRetirementMode(source);
+    const includeNps = includesNpsForMode(retirementMode);
+    const includeOther = includesOtherForMode(retirementMode);
+    const assumptionValues = OTHER_SCHEME_CONFIGS.reduce((acc, scheme) => {
+      acc[scheme.assumptionField] = normalizeAssumedReturnPct(source?.[scheme.assumptionField], scheme.annualReturn);
+      return acc;
+    }, {});
+
+    return {
+      ...source,
+      retirementMode,
+      age: parseIntegerInput(source.age, 28),
+      monthlyIncome: parseNumericInput(source.monthlyIncome),
+      npsUsage: includeNps ? (source.npsUsage || 'manual') : 'none',
+      npsContribution: includeNps ? parseNumericInput(source.npsContribution) : 0,
+      npsCorpus: includeNps ? parseNumericInput(source.npsCorpus) : 0,
+      addSavings: includeOther,
+      totalSavings: includeOther ? parseNumericInput(source.totalSavings) : 0,
+      usesPPF: includeOther ? Boolean(source.usesPPF) : false,
+      ppfMonthlyContribution: includeOther ? parseNumericInput(source.ppfMonthlyContribution) : 0,
+      usesEPFVPF: includeOther ? Boolean(source.usesEPFVPF) : false,
+      epfVpfMonthlyContribution: includeOther ? parseNumericInput(source.epfVpfMonthlyContribution) : 0,
+      usesMFSIP: includeOther ? Boolean(source.usesMFSIP) : false,
+      mfSipMonthlyContribution: includeOther ? parseNumericInput(source.mfSipMonthlyContribution) : 0,
+      usesStocksETF: includeOther ? Boolean(source.usesStocksETF) : false,
+      stocksEtfMonthlyContribution: includeOther ? parseNumericInput(source.stocksEtfMonthlyContribution) : 0,
+      usesFDRD: includeOther ? Boolean(source.usesFDRD) : false,
+      fdRdMonthlyContribution: includeOther ? parseNumericInput(source.fdRdMonthlyContribution) : 0,
+      usesOtherScheme: includeOther ? Boolean(source.usesOtherScheme) : false,
+      otherSchemeMonthlyContribution: includeOther ? parseNumericInput(source.otherSchemeMonthlyContribution) : 0,
+      customSchemeAssumptionsEnabled: includeOther ? Boolean(source.customSchemeAssumptionsEnabled) : false,
+      ...assumptionValues,
+      retireAge: parseIntegerInput(source.retireAge, 60),
+      stepUp: parseNumericInput(source.stepUp),
+      npsEquity: parseNumericInput(source.npsEquity) || 50,
+    };
+  };
 
   const toggleEditSection = (sectionName) => {
     if (editingSection === sectionName) {
@@ -136,14 +183,36 @@ const PageContent = () => {
         return;
       }
 
-      if (parsedData.npsContribution < 0) {
-        showToast('NPS contribution cannot be negative.', 'red');
+      const includeNps = includesNpsForMode(parsedData.retirementMode);
+      const includeOther = includesOtherForMode(parsedData.retirementMode);
+
+      if (includeNps) {
+        if (parsedData.npsContribution < 0) {
+          showToast('NPS contribution cannot be negative.', 'red');
+          return;
+        }
+
+        if (parsedData.npsContribution > parsedData.monthlyIncome) {
+          showToast('NPS contribution cannot exceed monthly income.', 'red');
+          return;
+        }
+      }
+
+      if (includeOther && parsedData.totalSavings <= 0) {
+        showToast('Add an approximate other-savings corpus for this mode.', 'red');
         return;
       }
 
-      if (parsedData.npsContribution > parsedData.monthlyIncome) {
-        showToast('NPS contribution cannot exceed monthly income.', 'red');
-        return;
+      if (includeOther) {
+        const missingSchemeContribution = OTHER_SCHEME_CONFIGS.find((scheme) => {
+          if (!parsedData[scheme.toggleField]) return false;
+          return !(parsedData[scheme.monthlyField] > 0);
+        });
+
+        if (missingSchemeContribution) {
+          showToast(`Add monthly contribution for ${missingSchemeContribution.label}.`, 'red');
+          return;
+        }
       }
 
       const newResults = calculateRetirement(parsedData);
@@ -200,8 +269,13 @@ const PageContent = () => {
 
   if (!userData) return null;
 
+  const parsedPreviewData = toParsedData(formData);
   const baseResults = calculateRetirement(userData);
-  const simulatedResults = calculateRetirement(toParsedData(formData));
+  const simulatedResults = calculateRetirement(parsedPreviewData);
+  const currentMode = normalizeRetirementMode(formData);
+  const viewingMode = normalizeRetirementMode(userData);
+  const showNpsInputs = includesNpsForMode(currentMode);
+  const showOtherInputs = includesOtherForMode(currentMode);
 
   return (
     <div className="p-4 md:p-8 space-y-8 max-w-4xl mx-auto pb-24">
@@ -285,13 +359,37 @@ const PageContent = () => {
       <div className={`relative bg-white border-2 border-[#1E293B] rounded-[24px] overflow-hidden pop-shadow transition-all ${editingSection === 'income' && 'ring-4 ring-[#F472B6]/10'}`}>
         <div className="w-1.5 absolute left-0 top-0 h-full bg-[#F472B6]" />
         <SectionHeader 
-          icon={Wallet} title="Income & NPS Details" color="#F472B6"
+          icon={Wallet} title={viewingMode === RETIREMENT_MODES.NPS_ONLY ? 'Income & NPS Details' : 'Income & Retirement Savings'} color="#F472B6"
           editing={editingSection === 'income'} 
           onEdit={() => toggleEditSection('income')} 
         />
         <div className="p-8">
           {editingSection === 'income' ? (
             <div className="space-y-6">
+              <div className="space-y-3">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Retirement setup</label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <button
+                    onClick={() => setFormData({ ...formData, retirementMode: RETIREMENT_MODES.NPS_ONLY, npsUsage: formData.npsUsage === 'none' ? 'manual' : (formData.npsUsage || 'manual') })}
+                    className={`py-3 rounded-xl border-2 border-[#1E293B] font-black uppercase tracking-widest text-[10px] transition-all ${currentMode === RETIREMENT_MODES.NPS_ONLY ? 'bg-[#8B5CF6] text-white shadow-[3px_3px_0_0_#1E293B]' : 'bg-white text-[#1E293B]'}`}
+                  >
+                    NPS only
+                  </button>
+                  <button
+                    onClick={() => setFormData({ ...formData, retirementMode: RETIREMENT_MODES.NON_NPS_ONLY, npsUsage: 'none' })}
+                    className={`py-3 rounded-xl border-2 border-[#1E293B] font-black uppercase tracking-widest text-[10px] transition-all ${currentMode === RETIREMENT_MODES.NON_NPS_ONLY ? 'bg-[#34D399] text-[#1E293B] shadow-[3px_3px_0_0_#1E293B]' : 'bg-white text-[#1E293B]'}`}
+                  >
+                    Non-NPS only
+                  </button>
+                  <button
+                    onClick={() => setFormData({ ...formData, retirementMode: RETIREMENT_MODES.HYBRID, npsUsage: formData.npsUsage === 'none' ? 'manual' : (formData.npsUsage || 'manual') })}
+                    className={`py-3 rounded-xl border-2 border-[#1E293B] font-black uppercase tracking-widest text-[10px] transition-all ${currentMode === RETIREMENT_MODES.HYBRID ? 'bg-[#FBBF24] text-[#1E293B] shadow-[3px_3px_0_0_#1E293B]' : 'bg-white text-[#1E293B]'}`}
+                  >
+                    NPS + Other
+                  </button>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Monthly Income (CTC)</label>
@@ -305,61 +403,164 @@ const PageContent = () => {
                     />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Monthly NPS Contribution</label>
-                  <div className="relative">
-                    <span className="absolute left-5 top-1/2 -translate-y-1/2 font-bold text-slate-300">₹</span>
-                    <input 
-                      type="number"
-                      className="w-full bg-slate-50 border-2 border-[#1E293B] rounded-full px-10 py-3 font-bold text-sm outline-none"
-                      value={formData.npsContribution}
-                      onChange={e => setFormData({...formData, npsContribution: e.target.value})}
-                    />
+                {showNpsInputs && (
+                  <>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Monthly NPS Contribution</label>
+                      <div className="relative">
+                        <span className="absolute left-5 top-1/2 -translate-y-1/2 font-bold text-slate-300">₹</span>
+                        <input 
+                          type="number"
+                          className="w-full bg-slate-50 border-2 border-[#1E293B] rounded-full px-10 py-3 font-bold text-sm outline-none"
+                          value={formData.npsContribution}
+                          onChange={e => setFormData({...formData, npsContribution: e.target.value})}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Current NPS Corpus</label>
+                      <div className="relative">
+                        <span className="absolute left-5 top-1/2 -translate-y-1/2 font-bold text-slate-300">₹</span>
+                        <input 
+                          type="number"
+                          className="w-full bg-slate-50 border-2 border-[#1E293B] rounded-full px-10 py-3 font-bold text-sm outline-none"
+                          value={formData.npsCorpus}
+                          onChange={e => setFormData({...formData, npsCorpus: e.target.value})}
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {showOtherInputs && (
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Other Savings Corpus (you can change later)</label>
+                    <div className="relative">
+                      <span className="absolute left-5 top-1/2 -translate-y-1/2 font-bold text-slate-300">₹</span>
+                      <input 
+                        type="number"
+                        className="w-full bg-slate-50 border-2 border-[#1E293B] rounded-full px-10 py-3 font-bold text-sm outline-none"
+                        value={formData.totalSavings}
+                        onChange={e => setFormData({...formData, totalSavings: e.target.value})}
+                      />
+                    </div>
                   </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Current NPS Corpus</label>
-                  <div className="relative">
-                    <span className="absolute left-5 top-1/2 -translate-y-1/2 font-bold text-slate-300">₹</span>
-                    <input 
-                      type="number"
-                      className="w-full bg-slate-50 border-2 border-[#1E293B] rounded-full px-10 py-3 font-bold text-sm outline-none"
-                      value={formData.npsCorpus}
-                      onChange={e => setFormData({...formData, npsCorpus: e.target.value})}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Other Savings (Optional)</label>
-                  <div className="relative">
-                    <span className="absolute left-5 top-1/2 -translate-y-1/2 font-bold text-slate-300">₹</span>
-                    <input 
-                      type="number"
-                      className="w-full bg-slate-50 border-2 border-[#1E293B] rounded-full px-10 py-3 font-bold text-sm outline-none"
-                      value={formData.totalSavings}
-                      onChange={e => setFormData({...formData, totalSavings: e.target.value})}
-                    />
-                  </div>
-                </div>
+                )}
               </div>
 
-              <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1">Equity Allocation <InfoTooltip text={SETTINGS_TIPS.equityAllocation} size={12} /></label>
-                    <span className="text-[9px] font-black text-[#F472B6]">Max for your age: {getMaxEquityPct(formData.age)}%</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    {[25, 50, 75].map(eq => (
-                      <button 
-                        key={eq}
-                        disabled={eq > getMaxEquityPct(formData.age)}
-                        onClick={() => setFormData({...formData, npsEquity: eq})}
-                        className={`py-3 rounded-full border-2 border-[#1E293B] font-black text-[10px] uppercase tracking-widest transition-all ${formData.npsEquity === eq ? 'bg-[#F472B6] text-white shadow-[3px_3px_0_0_#1E293B]' : eq > getMaxEquityPct(formData.age) ? 'opacity-20 cursor-not-allowed' : 'bg-white text-slate-400 hover:bg-slate-50'}`}
-                      >
-                        {eq}%
-                      </button>
+              {showNpsInputs && (
+                <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1">Equity Allocation <InfoTooltip text={SETTINGS_TIPS.equityAllocation} size={12} /></label>
+                      <span className="text-[9px] font-black text-[#F472B6]">Max for your age: {getMaxEquityPct(formData.age)}%</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      {[25, 50, 75].map(eq => (
+                        <button 
+                          key={eq}
+                          disabled={eq > getMaxEquityPct(formData.age)}
+                          onClick={() => setFormData({...formData, npsEquity: eq})}
+                          className={`py-3 rounded-full border-2 border-[#1E293B] font-black text-[10px] uppercase tracking-widest transition-all ${formData.npsEquity === eq ? 'bg-[#F472B6] text-white shadow-[3px_3px_0_0_#1E293B]' : eq > getMaxEquityPct(formData.age) ? 'opacity-20 cursor-not-allowed' : 'bg-white text-slate-400 hover:bg-slate-50'}`}
+                        >
+                          {eq}%
+                        </button>
+                      ))}
+                    </div>
+                </div>
+              )}
+
+              {showOtherInputs && (
+                <div className="space-y-4">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Other scheme monthly contributions</label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {OTHER_SCHEME_CONFIGS.map((scheme) => (
+                      <div key={scheme.id} className="border-2 border-[#1E293B]/10 rounded-2xl p-4 space-y-3">
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, [scheme.toggleField]: !formData[scheme.toggleField] })}
+                          className={`w-full py-2 rounded-xl border-2 border-[#1E293B] font-black uppercase tracking-widest text-[10px] transition-all ${formData[scheme.toggleField] ? 'bg-[#34D399] text-[#1E293B] shadow-[2px_2px_0_0_#1E293B]' : 'bg-white text-[#1E293B]'}`}
+                        >
+                          {scheme.label}
+                        </button>
+                        {formData[scheme.toggleField] && (
+                          <div className="space-y-2">
+                            <div className="relative">
+                              <span className="absolute left-5 top-1/2 -translate-y-1/2 font-bold text-slate-300">₹</span>
+                              <input
+                                type="number"
+                                className="w-full bg-slate-50 border-2 border-[#1E293B] rounded-full px-10 py-3 font-bold text-sm outline-none"
+                                value={formData[scheme.monthlyField]}
+                                onChange={e => setFormData({...formData, [scheme.monthlyField]: e.target.value})}
+                                placeholder="2,000"
+                              />
+                            </div>
+                            <p className="text-[10px] font-bold uppercase tracking-wide text-[#1E293B]/50">
+                              Assumed return: {getSchemeAssumedReturnPct(parsedPreviewData, scheme)}% p.a.
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
+
+                  <div className="bg-[#FFFDF5] border-2 border-[#1E293B] rounded-2xl p-4 space-y-4">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-[#1E293B]/50">Advanced Return Assumptions</div>
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-[#1E293B]/40">{SCHEME_ASSUMPTION_BASIS}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, customSchemeAssumptionsEnabled: !formData.customSchemeAssumptionsEnabled })}
+                        className={`px-4 py-2 rounded-full border-2 border-[#1E293B] font-black uppercase tracking-widest text-[10px] transition-all ${formData.customSchemeAssumptionsEnabled ? 'bg-[#34D399] text-[#1E293B] shadow-[2px_2px_0_0_#1E293B]' : 'bg-white text-[#1E293B]'}`}
+                      >
+                        {formData.customSchemeAssumptionsEnabled ? 'Custom ON' : 'Use Defaults'}
+                      </button>
+                    </div>
+
+                    {formData.customSchemeAssumptionsEnabled && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {OTHER_SCHEME_CONFIGS.filter((scheme) => formData[scheme.toggleField]).map((scheme) => (
+                          <div key={`${scheme.id}-assumption`} className="space-y-1">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">{scheme.label} Return Assumption</label>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                min={ASSUMED_RETURN_MIN_PCT}
+                                max={ASSUMED_RETURN_MAX_PCT}
+                                step="0.1"
+                                className="w-full bg-white border-2 border-[#1E293B] rounded-full px-4 py-2.5 pr-10 font-bold text-sm outline-none"
+                                value={formData[scheme.assumptionField]}
+                                onChange={e => setFormData({ ...formData, [scheme.assumptionField]: e.target.value })}
+                              />
+                              <span className="absolute right-4 top-1/2 -translate-y-1/2 font-black text-slate-400">%</span>
+                            </div>
+                            <p className="text-[9px] font-bold uppercase tracking-wide text-[#1E293B]/45">{scheme.assumptionLabel}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-[#1E293B]/45">
+                      Allowed range: {ASSUMED_RETURN_MIN_PCT}% to {ASSUMED_RETURN_MAX_PCT}% annualized.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-[#FFFDF5] border-2 border-[#1E293B] rounded-2xl p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">NPS Corpus</div>
+                  <div className="font-bold text-[#1E293B]">{formatIndian(simulatedResults.npsCorpusUsed)}</div>
+                </div>
+                <div>
+                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Other Savings</div>
+                  <div className="font-bold text-[#1E293B]">{formatIndian(simulatedResults.otherSavingsUsed)}</div>
+                </div>
+                <div>
+                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Combined Savings</div>
+                  <div className="font-bold text-[#8B5CF6]">{formatIndian(simulatedResults.combinedSavingsUsed)}</div>
+                </div>
               </div>
 
               <ScoreImpact
@@ -372,26 +573,30 @@ const PageContent = () => {
                 onClick={() => handleSave('income')}
                 className="w-full py-4 bg-[#F472B6] text-white border-2 border-[#1E293B] rounded-full font-black uppercase tracking-widest text-xs pop-shadow hover:-translate-y-1 transition-all"
               >
-                Update Income & Savings
+                Update Retirement Inputs
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
+              <div>
+                  <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1">Mode</div>
+                  <div className="font-bold text-[#1E293B] uppercase text-[10px] tracking-widest">{viewingMode.replaceAll('_', ' ')}</div>
+              </div>
               <div>
                   <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1">Income</div>
                   <div className="font-bold text-[#1E293B]">{formatIndian(userData.monthlyIncome)}</div>
               </div>
               <div>
-                  <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1">Contribution</div>
-                  <div className="font-bold text-[#1E293B]">{formatIndian(userData.npsContribution)}</div>
+                  <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1">NPS Corpus</div>
+                  <div className="font-bold text-[#1E293B]">{formatIndian(baseResults.npsCorpusUsed)}</div>
               </div>
               <div>
-                  <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1">Total Corpus</div>
-                  <div className="font-bold text-[#1E293B]">{formatIndian(userData.npsCorpus)}</div>
+                  <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1">Other Savings</div>
+                  <div className="font-bold text-[#1E293B]">{formatIndian(baseResults.otherSavingsUsed)}</div>
               </div>
               <div>
-                  <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1">Equity %</div>
-                  <div className="font-bold text-[#1E293B]">{userData.npsEquity}%</div>
+                  <div className="text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1">Combined Savings</div>
+                  <div className="font-bold text-[#8B5CF6]">{formatIndian(baseResults.combinedSavingsUsed)}</div>
               </div>
             </div>
           )}

@@ -12,6 +12,7 @@ import TourOverlay from '../components/TourOverlay';
 import InfoTooltip from '../components/InfoTooltip';
 import { TOUR_STEPS, DASHBOARD_TIPS } from '../constants/tooltips';
 import { decryptUserData, encryptUserData } from '../utils/encryption';
+import { RETIREMENT_MODES } from '../constants/investmentSchemes.js';
 import { 
   calculateRetirement, 
   getMilestoneAge, 
@@ -200,7 +201,7 @@ export default function Dashboard() {
       ...s,
       impact: s.delta,
       desc: s.description,
-      overrides: overridesMap[s.id] || {}
+         overrides: s.overrides || overridesMap[s.id] || {}
     }));
   }, [userData, baseResults]);
 
@@ -257,8 +258,8 @@ export default function Dashboard() {
   const dynamicMilestones = useMemo(() => {
     if (!userData || !baseResults) return [];
     const targets = [1000000, 2500000, 5000000, 10000000, 50000000, 100000000];
-    const corpus = (parseFloat(userData.npsCorpus) || 0) + (parseFloat(userData.totalSavings) || 0);
-    const pmt = parseFloat(userData.npsContribution) || 0;
+      const corpus = baseResults.combinedSavingsUsed || 0;
+      const pmt = baseResults.totalMonthlyContribution || 0;
     const currentAge = parseInt(userData.age) || 28;
     
     return targets.map(target => ({
@@ -266,6 +267,8 @@ export default function Dashboard() {
        ...getMilestoneAge(target, currentAge, corpus, pmt, baseResults.blendedReturn)
     }));
   }, [userData, baseResults]);
+
+   const isNonNpsOnly = baseResults?.retirementMode === RETIREMENT_MODES.NON_NPS_ONLY;
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -678,11 +681,27 @@ export default function Dashboard() {
 
             {/* 3. Quick Stats Row */}
             <section id="tour-quick-stats" className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-               <QuickStat label={<>Monthly Pulse <InfoTooltip text={DASHBOARD_TIPS.monthlyPulse} /></>} value={formatIndian(parseFloat(userData?.npsContribution || 0))} subtext="Investment Rate" icon={Wallet} color={COLORS.pink} />
-               <QuickStat label={<>Total Wealth <InfoTooltip text={DASHBOARD_TIPS.totalWealth} /></>} value={formatIndian(parseFloat(userData?.npsCorpus || 0) + parseFloat(userData?.totalSavings || 0))} subtext="NPS + Other Assets" icon={PiggyBank} color={COLORS.emerald} />
+                      <QuickStat label={<>Monthly Pulse <InfoTooltip text={DASHBOARD_TIPS.monthlyPulse} /></>} value={formatIndian(baseResults?.totalMonthlyContribution || 0)} subtext="Total monthly contribution" icon={Wallet} color={COLORS.pink} />
+                      <QuickStat label={<>NPS Corpus <InfoTooltip text={DASHBOARD_TIPS.totalWealth} /></>} value={formatIndian(baseResults?.npsCorpusUsed || 0)} subtext="Current NPS value" icon={Shield} color={COLORS.violet} />
+                      <QuickStat label={<>Other Savings <InfoTooltip text={DASHBOARD_TIPS.totalWealth} /></>} value={formatIndian(baseResults?.otherSavingsUsed || 0)} subtext="PPF/EPF/MF/others" icon={PiggyBank} color={COLORS.emerald} />
                <QuickStat label={<>Time Remaining <InfoTooltip text={DASHBOARD_TIPS.timeRemaining} /></>} value={`${userData?.retireAge - userData?.age} years`} subtext={`Until age ${userData?.retireAge}`} icon={Clock} color={COLORS.amber} />
-               <QuickStat label={<>Future Expense <InfoTooltip text={DASHBOARD_TIPS.futureExpense} /></>} value={formatIndian(baseResults?.monthlySpendAtRetirement)} subtext="Inflation Adjusted" icon={Home} color={COLORS.violet} />
             </section>
+
+                  {isNonNpsOnly && (
+                     <section className="bg-[#D1FAE5] border-2 border-[#1E293B] rounded-[20px] p-6 pop-shadow flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div>
+                           <div className="text-[10px] font-black uppercase tracking-[2px] text-[#065F46] mb-1">NPS Recommendation</div>
+                           <h3 className="font-heading font-black text-xl text-[#1E293B]">Consider adding NPS as a government-backed retirement layer.</h3>
+                           <p className="text-xs font-bold uppercase tracking-widest text-[#1E293B]/60 mt-2">Benefits: regulated structure, tax advantages, pension discipline at retirement.</p>
+                        </div>
+                        <button
+                           onClick={() => navigate('/settings')}
+                           className="px-6 py-3 bg-[#8B5CF6] text-white border-2 border-[#1E293B] rounded-full font-black uppercase tracking-widest text-xs shadow-[4px_4px_0_0_#1E293B]"
+                        >
+                           Enable NPS in Settings
+                        </button>
+                     </section>
+                  )}
 
             {/* 4. What If Scenarios */}
             <section id="tour-scenarios" className="space-y-6">
