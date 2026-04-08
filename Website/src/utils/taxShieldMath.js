@@ -50,8 +50,8 @@ export const DEDUCTION_LIMITS = {
   hraExemptionMax_pct:  0.50,   // metro city HRA exemption up to 50 % of basic
   hraExemptionNonMetro_pct: 0.40,
   npsRebate87A_old:     12500,  // rebate if taxable income ≤ 5 L (old)
-  rebate87A_new:        25000,  // rebate if taxable income ≤ 7 L (new) — Budget 2023
-  rebate87A_new_limit:  700000,
+  rebate87A_new:        60000,  // rebate if taxable income ≤ 12 L (new) — FY 2026-27
+  rebate87A_new_limit:  1200000,
   rebate87A_old_limit:  500000,
 };
 
@@ -79,11 +79,11 @@ function calcSurcharge(income, baseTax, isNewRegime) {
   return 0;
 }
 
-function totalTaxWithCess(income, slabs, isNewRegime) {
-  const base      = calcSlabTax(income, slabs);
-  const surcharge = calcSurcharge(income, base, isNewRegime);
-  const cess      = (base + surcharge) * CESS_RATE;
-  return Math.round(base + surcharge + cess);
+function totalTaxWithCessFromTaxable(taxableIncome, taxAfterRebate, isNewRegime) {
+  const normalizedTax = Math.max(0, Number(taxAfterRebate) || 0);
+  const surcharge = calcSurcharge(taxableIncome, normalizedTax, isNewRegime);
+  const cess = (normalizedTax + surcharge) * CESS_RATE;
+  return Math.round(normalizedTax + surcharge + cess);
 }
 
 // ─── DEDUCTION BUILDER ───────────────────────────────────────────────────────
@@ -182,7 +182,7 @@ export function computeTaxSavings(userData) {
     : 0;
   oldBaseTax = Math.max(0, oldBaseTax - old87AApplied);
 
-  const oldTotalTax = totalTaxWithCess(oldTaxable, OLD_REGIME_SLABS, false);
+  const oldTotalTax = totalTaxWithCessFromTaxable(oldTaxable, oldBaseTax, false);
 
   // ── NEW REGIME ─────────────────────────────────────────────────────────────
   // New regime: only standard deduction + 80CCD(2) employer NPS allowed
@@ -203,7 +203,7 @@ export function computeTaxSavings(userData) {
     : 0;
   newBaseTax = Math.max(0, newBaseTax - new87AApplied);
 
-  const newTotalTax    = totalTaxWithCess(newTaxable, NEW_REGIME_SLABS, true);
+  const newTotalTax    = totalTaxWithCessFromTaxable(newTaxable, newBaseTax, true);
 
   // ── RECOMMENDED REGIME ────────────────────────────────────────────────────
   const recommendedRegime = oldTotalTax <= newTotalTax ? 'OLD' : 'NEW';

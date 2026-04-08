@@ -4,7 +4,7 @@
 // Wrapped in DashboardLayout to integrate with the existing sidebar/nav.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useState, useContext, useMemo, useEffect } from 'react';
+import { useState, useContext, useMemo, useEffect, createElement } from 'react';
 import { computeTaxSavings, computeTaxWhatIf } from '../utils/taxShieldMath';
 import { UserContext } from '../components/UserContext';
 import DashboardLayout from '../components/DashboardLayout';
@@ -35,6 +35,11 @@ function mapUserDataToTaxInput(userData) {
   if (!userData) return {};
   const monthlyIncome = Math.max(0, Number(userData.monthlyIncome) || 0);
   const basicPct = Number(userData.basicSalaryPct) || 0.4;
+  const isGovtEmployee = typeof userData.isGovtEmployee === 'boolean'
+    ? userData.isGovtEmployee
+    : userData.workContext === 'Government';
+  const isMetroCity = Boolean(userData.isMetroCityForHRA)
+    || String(userData.cityType || '').toLowerCase().startsWith('metro');
 
   return {
     // Income
@@ -63,11 +68,11 @@ function mapUserDataToTaxInput(userData) {
     // HRA
     hraReceived:          Math.max(0, Number(userData.houseRentAllowance_HRA) || 0),
     rentPaid:             Math.max(0, Number(userData.actualRentPaid) || 0),
-    isMetroCity:          false,
+    isMetroCity,
 
     // Profile
     age:                  parseInt(userData.age) || 30,
-    isGovtEmployee:       userData.workContext === 'Government',
+    isGovtEmployee,
 
     // LTA
     ltaDeclared:          Math.max(0, Number(userData.leaveTravelAllowance_LTA) || 0),
@@ -110,7 +115,7 @@ function StatCard({ icon: Icon, label, value, sub, accent = COLORS.emerald }) {
           className="w-10 h-10 rounded-full flex items-center justify-center border-2 border-[#1E293B] shadow-[2px_2px_0_0_#1E293B] group-hover:shadow-[3px_3px_0_0_#1E293B] transition-all"
           style={{ backgroundColor: `${accent}22` }}
         >
-          <Icon size={18} strokeWidth={2.5} style={{ color: accent }} />
+          {createElement(Icon, { size: 18, strokeWidth: 2.5, style: { color: accent } })}
         </div>
       </div>
       <div className="font-heading font-extrabold text-2xl md:text-3xl text-[#1E293B]">{value}</div>
@@ -123,7 +128,6 @@ function StatCard({ icon: Icon, label, value, sub, accent = COLORS.emerald }) {
 
 function RegimeCard({ label, data, recommended }) {
   const isRec = recommended === (label === 'Old Regime' ? 'OLD' : 'NEW');
-  const accentColor = isRec ? COLORS.emerald : '#94A3B8';
   return (
     <div
       className={`relative bg-white border-2 border-[#1E293B] rounded-[20px] p-6 transition-all ${
@@ -384,7 +388,8 @@ function TaxShieldContent() {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    if (userData && Object.keys(formData).length === 0) setFormData(userData);
+    if (!userData) return;
+    setFormData((prev) => (Object.keys(prev).length === 0 ? userData : prev));
   }, [userData]);
 
   const mappedData = useMemo(() => mapUserDataToTaxInput(formData), [formData]);
@@ -478,7 +483,7 @@ function TaxShieldContent() {
                 : 'text-[#1E293B]/40 hover:bg-[#FBBF24] hover:text-[#1E293B] hover:border-[#1E293B]'
             }`}
           >
-            <Icon size={14} strokeWidth={2.5} />
+            {createElement(Icon, { size: 14, strokeWidth: 2.5 })}
             {label}
           </button>
         ))}

@@ -358,6 +358,11 @@ export default function Onboarding() {
     }
 
     const selectedSchemes = OTHER_SCHEME_CONFIGS.filter((scheme) => Boolean(data[scheme.toggleField]));
+    if (selectedSchemes.length === 0) {
+      nextErrors.selectedOtherSchemes = 'Select at least one monthly scheme';
+      return nextErrors;
+    }
+
     selectedSchemes.forEach((scheme) => {
       const value = parsed[scheme.monthlyField];
       if (!(value > 0)) {
@@ -652,7 +657,16 @@ export default function Onboarding() {
                 <h2 className="font-heading font-extrabold text-2xl md:text-3xl leading-tight text-center mb-6">What best describes your work?</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {['Private Sector', 'Government', 'Self-Employed', 'Student / Other'].map(opt => (
-                    <CardOption key={opt} label={opt} selected={formData.workContext === opt} onClick={() => setFormData({...formData, workContext: opt})} />
+                    <CardOption
+                      key={opt}
+                      label={opt}
+                      selected={formData.workContext === opt}
+                      onClick={() => {
+                        const isGovernment = opt === 'Government';
+                        setFormData({ ...formData, workContext: opt, isGovtEmployee: isGovernment });
+                        clearErrorsForFields(['workContext']);
+                      }}
+                    />
                   ))}
                 </div>
               </div>
@@ -689,21 +703,30 @@ export default function Onboarding() {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <button
-                    onClick={() => setFormData({ ...formData, retirementMode: RETIREMENT_MODES.NPS_ONLY, npsUsage: formData.npsUsage === 'none' ? 'manual' : (formData.npsUsage || 'manual') })}
+                    onClick={() => {
+                      setFormData({ ...formData, retirementMode: RETIREMENT_MODES.NPS_ONLY, npsUsage: formData.npsUsage === 'none' ? 'manual' : (formData.npsUsage || 'manual') });
+                      clearErrorsForFields(['retirementMode', 'npsUsage', 'npsContribution', 'npsCorpus', 'totalSavings', 'selectedOtherSchemes']);
+                    }}
                     className={`p-4 rounded-xl border-2 border-[#1E293B] text-left transition-all ${formData.retirementMode === RETIREMENT_MODES.NPS_ONLY ? 'bg-[#8B5CF6] text-white shadow-[4px_4px_0_0_#1E293B] -translate-y-1' : 'bg-white text-[#1E293B] hover:-translate-y-1 hover:shadow-[4px_4px_0_0_#1E293B]'}`}
                   >
                     <div className="font-black uppercase tracking-widest text-xs mb-1">NPS Only</div>
                     <div className={`text-[10px] font-bold ${formData.retirementMode === RETIREMENT_MODES.NPS_ONLY ? 'text-white/80' : 'text-[#1E293B]/60'}`}>Use only NPS for score calculations</div>
                   </button>
                   <button
-                    onClick={() => setFormData({ ...formData, retirementMode: RETIREMENT_MODES.NON_NPS_ONLY, npsUsage: 'none' })}
+                    onClick={() => {
+                      setFormData({ ...formData, retirementMode: RETIREMENT_MODES.NON_NPS_ONLY, npsUsage: 'none' });
+                      clearErrorsForFields(['retirementMode', 'npsUsage', 'npsContribution', 'npsCorpus']);
+                    }}
                     className={`p-4 rounded-xl border-2 border-[#1E293B] text-left transition-all ${formData.retirementMode === RETIREMENT_MODES.NON_NPS_ONLY ? 'bg-[#34D399] text-[#1E293B] shadow-[4px_4px_0_0_#1E293B] -translate-y-1' : 'bg-white text-[#1E293B] hover:-translate-y-1 hover:shadow-[4px_4px_0_0_#1E293B]'}`}
                   >
                     <div className="font-black uppercase tracking-widest text-xs mb-1">Non-NPS Only</div>
                     <div className="text-[10px] font-bold text-[#1E293B]/60">Use PPF/EPF/MF/other schemes</div>
                   </button>
                   <button
-                    onClick={() => setFormData({ ...formData, retirementMode: RETIREMENT_MODES.HYBRID, npsUsage: formData.npsUsage === 'none' ? 'manual' : (formData.npsUsage || 'manual') })}
+                    onClick={() => {
+                      setFormData({ ...formData, retirementMode: RETIREMENT_MODES.HYBRID, npsUsage: formData.npsUsage === 'none' ? 'manual' : (formData.npsUsage || 'manual') });
+                      clearErrorsForFields(['retirementMode', 'npsUsage', 'npsContribution', 'npsCorpus', 'totalSavings', 'selectedOtherSchemes']);
+                    }}
                     className={`p-4 rounded-xl border-2 border-[#1E293B] text-left transition-all ${formData.retirementMode === RETIREMENT_MODES.HYBRID ? 'bg-[#FBBF24] text-[#1E293B] shadow-[4px_4px_0_0_#1E293B] -translate-y-1' : 'bg-white text-[#1E293B] hover:-translate-y-1 hover:shadow-[4px_4px_0_0_#1E293B]'}`}
                   >
                     <div className="font-black uppercase tracking-widest text-xs mb-1">NPS + Other</div>
@@ -717,7 +740,10 @@ export default function Onboarding() {
                 {includesNps ? (
                   <>
                     <button
-                      onClick={() => setFormData({ ...formData, npsUsage: 'upload' })}
+                      onClick={() => {
+                        setFormData({ ...formData, npsUsage: 'upload' });
+                        clearErrorsForFields(['npsUsage', 'npsContribution', 'npsCorpus']);
+                      }}
                       className={`w-full p-4 mt-2 text-left border-2 rounded-xl flex items-center gap-4 transition-all cubic cursor-pointer ${formData.npsUsage === 'upload' ? 'bg-[#34D399] border-[#1E293B] shadow-[4px_4px_0_0_#1E293B] -translate-y-1' : 'bg-white border-[#1E293B] shadow-[2px_2px_0_0_#1E293B] hover:-translate-y-1 hover:shadow-[4px_4px_0_0_#1E293B]'}`}
                     >
                       <div className="w-10 h-10 rounded-full bg-white border-2 border-[#1E293B] flex items-center justify-center shrink-0">
@@ -730,7 +756,14 @@ export default function Onboarding() {
                     </button>
 
                     <div className="grid grid-cols-1 gap-3">
-                      <CardOption label="Enter NPS details manually" selected={formData.npsUsage === 'manual'} onClick={() => setFormData({ ...formData, npsUsage: 'manual' })} />
+                      <CardOption
+                        label="Enter NPS details manually"
+                        selected={formData.npsUsage === 'manual'}
+                        onClick={() => {
+                          setFormData({ ...formData, npsUsage: 'manual' });
+                          clearErrorsForFields(['npsUsage']);
+                        }}
+                      />
                     </div>
 
                     {formData.npsUsage === 'manual' && (
@@ -918,7 +951,10 @@ export default function Onboarding() {
                               <button
                                 key={scheme.id}
                                 type="button"
-                                onClick={() => setFormData({ ...formData, [scheme.toggleField]: !formData[scheme.toggleField] })}
+                                onClick={() => {
+                                  setFormData({ ...formData, [scheme.toggleField]: !formData[scheme.toggleField] });
+                                  clearErrorsForFields(['selectedOtherSchemes', scheme.monthlyField]);
+                                }}
                                 className={`py-3 px-2 rounded-xl border-2 border-[#1E293B] font-black uppercase tracking-widest text-[10px] transition-all flex flex-col items-center gap-1 ${formData[scheme.toggleField] ? 'bg-[#34D399] text-[#1E293B] shadow-[3px_3px_0_0_#1E293B]' : 'bg-white text-[#1E293B]'}`}
                               >
                                 <span>{scheme.label}</span>
@@ -926,6 +962,9 @@ export default function Onboarding() {
                               </button>
                             ))}
                           </div>
+                          {errors.selectedOtherSchemes && (
+                            <p className="text-[10px] font-black uppercase tracking-widest text-[#EF4444]">{errors.selectedOtherSchemes}</p>
+                          )}
                           {selectedSchemeConfigs.length === 0 && (
                             <p className="text-[10px] font-black uppercase tracking-widest text-[#EF4444]">Select at least one monthly scheme to model growth accurately.</p>
                           )}
@@ -990,7 +1029,8 @@ export default function Onboarding() {
                     !formData.lifestyleMode ||
                     !formData.lifestyle ||
                     (formData.lifestyleMode === LIFESTYLE_MODES.CUSTOM && !(parseNumericInput(formData.customLifestyleMonthlySpend) > 0))
-                  ))
+                  )) ||
+                  (step === 8 && includesOtherSchemes && selectedSchemeConfigs.length === 0)
                 }
                 className="candy-btn touch-target w-full py-4 text-base md:text-lg font-black uppercase tracking-widest pop-shadow flex justify-center items-center gap-3 cursor-pointer"
              >

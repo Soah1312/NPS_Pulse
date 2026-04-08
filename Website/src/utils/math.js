@@ -175,6 +175,14 @@ function parseAmount(value) {
   return Math.max(0, Number(value) || 0)
 }
 
+function normalizeStepUp(value) {
+  const raw = Math.max(0, Number(value) || 0)
+  if (raw >= 1) {
+    return raw / 100
+  }
+  return raw
+}
+
 function computeFutureValue(corpus, monthlyContribution, monthlyRate, months) {
   const baseCorpus = Math.max(0, Number(corpus) || 0)
   const monthly = Math.max(0, Number(monthlyContribution) || 0)
@@ -189,6 +197,42 @@ function computeFutureValue(corpus, monthlyContribution, monthlyRate, months) {
     : 0
 
   return corpusFuture + contributionFuture
+}
+
+function computeFutureValueWithAnnualStepUp(corpus, monthlyContribution, monthlyRate, months, annualStepUpRate) {
+  const baseCorpus = Math.max(0, Number(corpus) || 0)
+  const monthly = Math.max(0, Number(monthlyContribution) || 0)
+  const safeMonths = Math.max(0, Number(months) || 0)
+  const stepUpRate = Math.max(0, Number(annualStepUpRate) || 0)
+
+  if (stepUpRate <= 0 || monthly <= 0 || safeMonths <= 0) {
+    return computeFutureValue(baseCorpus, monthly, monthlyRate, safeMonths)
+  }
+
+  if (monthlyRate <= 0) {
+    let steppedContribution = monthly
+    let contributionFuture = 0
+    for (let month = 1; month <= safeMonths; month++) {
+      contributionFuture += steppedContribution
+      if (month % 12 === 0) {
+        steppedContribution *= (1 + stepUpRate)
+      }
+    }
+    return baseCorpus + contributionFuture
+  }
+
+  let totalFuture = baseCorpus * Math.pow(1 + monthlyRate, safeMonths)
+  let steppedContribution = monthly
+
+  for (let month = 1; month <= safeMonths; month++) {
+    const monthsRemaining = safeMonths - month + 1
+    totalFuture += steppedContribution * Math.pow(1 + monthlyRate, monthsRemaining)
+    if (month % 12 === 0) {
+      steppedContribution *= (1 + stepUpRate)
+    }
+  }
+
+  return totalFuture
 }
 
 function resolveRetirementMode(data) {
@@ -221,6 +265,7 @@ export function calculateRetirement(data) {
   const includeOther = retirementMode !== RETIREMENT_MODES.NPS_ONLY
 
   const monthlyContribRaw = parseAmount(data.npsContribution)
+  const stepUpRate = includeNps ? normalizeStepUp(data.stepUp) : 0
   const monthlyContrib = includeNps
     ? Math.min(monthlyContribRaw, Math.max(0, monthlyIncome))
     : 0
@@ -262,7 +307,7 @@ export function calculateRetirement(data) {
 
   // ── PROJECTED VALUE ──
   const projectedNpsValue = includeNps
-    ? computeFutureValue(npsCorpus, monthlyContrib, npsAnnualReturn / 12, n)
+    ? computeFutureValueWithAnnualStepUp(npsCorpus, monthlyContrib, npsAnnualReturn / 12, n, stepUpRate)
     : 0
   const projectedOtherValue = includeOther
     ? computeFutureValue(otherSavings, otherMonthlyContrib, otherAnnualReturn / 12, n)
@@ -305,6 +350,7 @@ export function calculateRetirement(data) {
     age, retireAge, years, monthlyIncome,
     retirementMode,
     monthlyContrib,
+    stepUpRate,
     otherMonthlyContrib,
     totalMonthlyContribution,
     totalCorpus,
@@ -374,19 +420,10 @@ export function computeWhatIfScenarios(userData) {
       title: 'Enable 10% annual step-up in NPS',
       description: 'Grow NPS contributions with salary hikes',
       overrides: { stepUp: 0.10 },
-      score: (() => {
-        const d = calculateRetirement(userData)
-        const fvStepUp = computeStepUpFV(
-          parseFloat(userData.npsContribution) || 0,
-          d.npsAnnualReturn,
-          d.years
-        )
-        const npsCorpus = parseAmount(userData.npsCorpus)
-        const npsRate = d.npsAnnualReturn / 12
-        const fvCorpus = npsCorpus * Math.pow(1 + npsRate, d.n)
-        const pv = fvCorpus + fvStepUp + (activeMode === RETIREMENT_MODES.HYBRID ? d.projectedOtherValue || 0 : 0)
-        return Math.min(100, Math.round((pv / d.requiredCorpus) * 100))
-      })(),
+      score: calculateRetirement({
+        ...userData,
+        stepUp: 0.10,
+      }).score,
     },
     {
       id: 'max_equity',
@@ -637,7 +674,9 @@ export function calculateTaxLeakage(userData) {
   const annualIncome = (Math.max(0, Number(userData?.monthlyIncome) || 0)) * 12
   const annualContrib = (Math.max(0, Number(userData?.npsContribution) || 0)) * 12
   const regime = userData?.taxRegime === 'old' ? 'old' : 'new'
-  const isGovt = userData?.workContext === 'Government'
+  const isGovt = typeof userData?.isGovtEmployee === 'boolean'
+    ? userData.isGovtEmployee
+    : userData?.workContext === 'Government'
 
   const basicSalaryPct = isGovt ? 0.50 : 0.40
   const basicSalary = annualIncome * basicSalaryPct
@@ -697,7 +736,9 @@ export function computeTaxSavings(userData) {
   const annualIncome = (Math.max(0, Number(userData?.monthlyIncome) || 0)) * 12
   const annualContrib = (Math.max(0, Number(userData?.npsContribution) || 0)) * 12
   const regime = userData?.taxRegime === 'old' ? 'old' : 'new'
-  const isGovt = userData?.workContext === 'Government'
+  const isGovt = typeof userData?.isGovtEmployee === 'boolean'
+    ? userData.isGovtEmployee
+    : userData?.workContext === 'Government'
 
   const basicSalaryPct = isGovt ? 0.50 : 0.40
   const basicSalary = annualIncome * basicSalaryPct
