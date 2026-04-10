@@ -30,6 +30,7 @@ const COLORS = {
 };
 
 const MIN_AGE = 18;
+const MIN_RETIRE_AGE = 40;
 const MAX_RETIRE_AGE = 75;
 const MIN_MONTHLY_INCOME = 1000;
 const MAX_MONTHLY_INCOME = 100000000; // 10 Cr
@@ -274,6 +275,10 @@ export default function Onboarding() {
 
     if (age < MIN_AGE) {
       nextErrors.age = `Age must be at least ${MIN_AGE}`;
+    }
+
+    if (retireAge < MIN_RETIRE_AGE) {
+      nextErrors.retireAge = `Retirement age must be at least ${MIN_RETIRE_AGE}`;
     }
 
     if (retireAge > MAX_RETIRE_AGE) {
@@ -793,7 +798,7 @@ export default function Onboarding() {
                     <span className="text-lg md:text-xl text-[#1E293B]/50 font-bold uppercase tracking-widest absolute -right-16 md:-right-20 bottom-3 md:bottom-4">Years</span>
                   </div>
                   <input 
-                    type="range" min="50" max="75" 
+                    type="range" min="40" max="75" 
                     value={formData.retireAge} 
                     onChange={e => {
                       setFormData({ ...formData, retireAge: parseInt(e.target.value, 10) });

@@ -48,6 +48,14 @@ function sanitizeAssistantContent(content) {
   return sanitized.trimStart();
 }
 
+function isCreatorIdentityQuestion(text) {
+  if (typeof text !== 'string') return false;
+  const normalized = text.trim();
+  if (!normalized) return false;
+
+  return /\b(who\s+(created|made|built|developed)\s+(this\s+)?(platform|app|website|site)|who\s+is\s+behind\s+(this\s+)?(platform|app|website|site)|who(?:'s|\s+is)\s+(the\s+)?(creator|founder|team))\b/i.test(normalized);
+}
+
 const markdownComponents = {
   p: (props) => <p className="mb-3 last:mb-0 leading-relaxed" {...props} />,
   strong: (props) => <strong className="font-black text-[#1E293B]" {...props} />,
@@ -413,6 +421,19 @@ const ChatInterface = () => {
       return;
     }
 
+    if (isCreatorIdentityQuestion(text)) {
+      const now = new Date();
+      setMessages((prev) => [
+        ...prev,
+        { role: 'user', content: text, timestamp: now },
+        { role: 'assistant', content: 'Team Chakuli', timestamp: new Date() },
+      ]);
+      setInputValue('');
+      setAssistantPlaceholderStageIndex(0);
+      setError(null);
+      return;
+    }
+
     const userMessage = { role: 'user', content: text, timestamp: new Date() };
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
@@ -492,6 +513,8 @@ At 60: 40% annuitized minimum 60% lump sum tax-free.
 80CCD(1) old regime only 10% basic private 14% govt max 1.5L.
 80CCD(1B) old regime only extra 50000. 80CCD(2) both regimes.
 New regime 87A rebate zero tax if income under 12L.
+
+IDENTITY RULE: If user asks who created this platform/app/website, reply exactly: Team Chakuli
 
 SCOPE: Answer NPS retirement tax career-affecting-NPS questions only.
 For off-topic questions pivot to one insight from their profile.
