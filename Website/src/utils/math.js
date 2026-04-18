@@ -17,6 +17,7 @@ import {
   getOtherSchemeAnnualReturn,
   getTotalOtherSchemeMonthlyContribution,
 } from '../constants/investmentSchemes.js'
+import { computeTaxSavings as computeTaxSavingsCore } from './taxShieldMath.js'
 
 // ── SCHEME RETURNS (10-year averages) ───────
 export const SCHEME_E_RETURN = 0.1269   // Equity
@@ -733,96 +734,122 @@ export function calculateTaxLeakage(userData) {
 }
 
 export function computeTaxSavings(userData) {
-  const annualIncome = (Math.max(0, Number(userData?.monthlyIncome) || 0)) * 12
-  const annualContrib = (Math.max(0, Number(userData?.npsContribution) || 0)) * 12
-  const regime = userData?.taxRegime === 'old' ? 'old' : 'new'
-  const isGovt = typeof userData?.isGovtEmployee === 'boolean'
-    ? userData.isGovtEmployee
-    : userData?.workContext === 'Government'
+  const input = userData || {}
+  const n = (value) => Math.max(0, Number(value) || 0)
+  const regime = input?.taxRegime === 'old' ? 'old' : 'new'
+  const annualIncome = input?.annualIncome ? n(input.annualIncome) : n(input.monthlyIncome) * 12
+  const isGovt = typeof input?.isGovtEmployee === 'boolean'
+    ? input.isGovtEmployee
+    : input?.workContext === 'Government'
+  const basicSalaryPct = Math.min(0.8, Math.max(0.2, Number(input?.basicSalaryPct) || (isGovt ? 0.5 : 0.4)))
+  const basicSalary = input?.basicSalary ? n(input.basicSalary) : annualIncome * basicSalaryPct
+  const employerNpsAnnual = n(input?.employerNPSContributionAnnual)
+  const employerNpsMonthlyExplicit = n(input?.npsEmployerMonthly)
+  const employerNpsPct = regime === 'new' ? 0.14 : 0.10
+  const employerNpsMonthly = employerNpsMonthlyExplicit > 0
+    ? employerNpsMonthlyExplicit
+    : employerNpsAnnual > 0
+    ? employerNpsAnnual / 12
+    : input?.hasOptedForEmployerNPS
+    ? (annualIncome / 12) * basicSalaryPct * employerNpsPct
+    : 0
 
-  const basicSalaryPct = isGovt ? 0.50 : 0.40
-  const basicSalary = annualIncome * basicSalaryPct
+  const legacyExtra80C = n(input?.extra80C)
+  const legacyHomeLoan = n(input?.homeLoanInterest24b)
+  const legacyMedical80D = n(input?.medicalInsurance80D)
 
-  const oldCcd2Pct = isGovt ? 0.14 : 0.10
-  const newCcd2Pct = 0.14 // 80CCD(2) parity in New Regime
+  const coreInput = {
+    grossIncome: annualIncome,
+    annualIncome,
+    basicSalary,
+    npsSelfMonthly: n(input?.npsSelfMonthly || input?.npsContribution),
+    npsEmployerMonthly: employerNpsMonthly,
+    epfMonthly: n(input?.epfMonthly || input?.epfVpfMonthlyContribution),
+    elssMonthly: n(input?.elssMonthly || input?.mfSipMonthlyContribution),
+    ppfMonthly: n(input?.ppfMonthly || input?.ppfMonthlyContribution),
+    licPremium: n(input?.licPremium || input?.lifeInsurance_80C || legacyExtra80C),
+    healthInsuranceSelf: n(input?.healthInsuranceSelf || input?.medicalInsurance_80D || legacyMedical80D),
+    healthInsuranceParents: n(input?.healthInsuranceParents),
+    homeLoanInterest: n(input?.homeLoanInterest || legacyHomeLoan),
+    homeLoanPrincipal: n(input?.homeLoanPrincipal),
+    hraReceived: n(input?.hraReceived || input?.houseRentAllowance_HRA),
+    rentPaid: n(input?.rentPaid || input?.actualRentPaid),
+    isMetroCity: typeof input?.isMetroCity === 'boolean'
+      ? input.isMetroCity
+      : Boolean(input?.isMetroCityForHRA) || String(input?.cityType || '').toLowerCase().startsWith('metro'),
+    age: parseInt(input?.age, 10) || 30,
+    isGovtEmployee: isGovt,
+    ltaDeclared: n(input?.ltaDeclared || input?.leaveTravelAllowance_LTA),
+    ltaEntitled: n(input?.ltaEntitled || input?.leaveTravelAllowance_LTA),
+  }
 
-  const ccd1Limit = Math.min(basicSalary * oldCcd2Pct, 150000)
-  const ccd1Used = regime === 'old' ? Math.min(annualContrib, ccd1Limit) : 0
-  const ccd1Missed = regime === 'old' ? ccd1Limit - ccd1Used : 0
+  const shared = computeTaxSavingsCore(coreInput)
+  const withoutNps = computeTaxSavingsCore({
+    ...coreInput,
+    npsSelfMonthly: 0,
+    npsEmployerMonthly: 0,
+  })
 
+  const deductionByLabel = (label, regimeKey) => {
+    const row = (shared.deductionBreakdown || []).find((d) => d.label === label)
+    return Math.max(0, Number(row?.[regimeKey]) || 0)
+  }
+
+  const oldCcd2Pct = 0.10
+  const newCcd2Pct = 0.14
+  const ccd1Limit = Math.min(basicSalary * 0.10, 150000)
+  const ccd1Used = deductionByLabel('NPS 80CCD(1)', 'old')
   const ccd1bLimit = 50000
-  const ccd1bUsed = regime === 'old'
-    ? Math.min(Math.max(0, annualContrib - ccd1Limit), ccd1bLimit)
-    : 0
-  const ccd1bMissed = regime === 'old' ? ccd1bLimit - ccd1bUsed : 0
+  const ccd1bUsed = deductionByLabel('NPS 80CCD(1B)', 'old')
+  const section24bUsed = deductionByLabel('Home Loan Interest 24b', 'old')
+  const section80dUsed = deductionByLabel('Health Insurance 80D', 'old')
+  const section80cUsed = deductionByLabel('Section 80C', 'old')
 
-  const ccd2LimitCurrentRegime = basicSalary * (regime === 'new' ? newCcd2Pct : oldCcd2Pct)
-  const ccd2Potential = ccd2LimitCurrentRegime
+  const oldTaxDetails = {
+    taxableIncome: shared.old.taxableIncome,
+    taxPayable: shared.old.totalTax,
+    marginalReliefApplied: false,
+  }
+  const newTaxDetails = {
+    taxableIncome: shared.new.taxableIncome,
+    taxPayable: shared.new.totalTax,
+    marginalReliefApplied: false,
+  }
 
-  const section24bLimit = regime === 'old' ? 200000 : 0
-  const section80dLimit = regime === 'old' ? 50000 : 0
-  const section80cLimit = regime === 'old' ? 150000 : 0
-
-  const section24bUsed = regime === 'old'
-    ? Math.min(Math.max(0, Number(userData?.homeLoanInterest24b) || 0), section24bLimit)
-    : 0
-  const section80dUsed = regime === 'old'
-    ? Math.min(Math.max(0, Number(userData?.medicalInsurance80D) || 0), section80dLimit)
-    : 0
-  const section80cUsed = regime === 'old'
-    ? Math.min(Math.max(0, Number(userData?.extra80C) || 0), section80cLimit)
-    : 0
-
-  const oldRegimeDeductionsCurrent = sumAllowedDeductionBlocks({
-    ccd1: ccd1Used,
-    ccd1b: ccd1bUsed,
-    ccd2: Math.max(0, Number(userData?.employerNPSContributionAnnual) || 0),
-    section24b: section24bUsed,
-    section80d: section80dUsed,
-    section80c: section80cUsed,
-  })
-
-  const newRegimeDeductionsCurrent = sumAllowedDeductionBlocks({
-    ccd2: Math.min(Math.max(0, Number(userData?.employerNPSContributionAnnual) || 0), basicSalary * newCcd2Pct),
-  })
-
-  const oldTaxDetails = computeTaxDetailed(annualIncome, 'old', oldRegimeDeductionsCurrent)
-  const newTaxDetails = computeTaxDetailed(annualIncome, 'new', newRegimeDeductionsCurrent)
-
-  const recommendedRegime = oldTaxDetails.taxPayable <= newTaxDetails.taxPayable ? 'old' : 'new'
-  const potentialSavings = Math.abs(oldTaxDetails.taxPayable - newTaxDetails.taxPayable)
-
-  const breakevenPoint = calculateBreakevenDeductions(annualIncome)
-  const leakageInfo = calculateTaxLeakage(userData)
-
-  const currentDeductions = regime === 'new' ? newRegimeDeductionsCurrent : oldRegimeDeductionsCurrent
-  const taxWithNPS = computeTax(annualIncome, regime, currentDeductions)
-  const taxWithoutNPS = computeTax(annualIncome, regime, 0)
+  const taxWithNPS = regime === 'new' ? shared.new.totalTax : shared.old.totalTax
+  const taxWithoutNPS = regime === 'new' ? withoutNps.new.totalTax : withoutNps.old.totalTax
+  const recommendedRegime = shared.recommendedRegime === 'OLD' ? 'old' : 'new'
+  const potentialSavings = Math.max(0, Number(shared.annualTaxSaving) || 0)
+  const taxLeakage = Math.max(0, (shared.leakages || []).reduce((sum, item) => sum + (Number(item.potentialSaving) || 0), 0))
 
   return {
-    oldTax: oldTaxDetails.taxPayable,
-    newTax: newTaxDetails.taxPayable,
+    oldTax: shared.old.totalTax,
+    newTax: shared.new.totalTax,
     recommendedRegime,
-    breakevenPoint,
-    taxLeakage: leakageInfo.leakage,
+    breakevenPoint: calculateBreakevenDeductions(annualIncome),
+    taxLeakage,
     potentialSavings,
     potentialSaving: potentialSavings,
-    marginalReliefApplied: newTaxDetails.marginalReliefApplied,
+    marginalReliefApplied: false,
 
     annualIncome,
     basicSalary,
     regime,
-    ccd1: { limit: ccd1Limit, used: ccd1Used, missed: ccd1Missed },
-    ccd1b: { limit: ccd1bLimit, used: ccd1bUsed, missed: ccd1bMissed },
-    ccd2: { potential: ccd2Potential, limitOld: basicSalary * oldCcd2Pct, limitNew: basicSalary * newCcd2Pct },
-    section24b: { limit: section24bLimit, used: section24bUsed },
-    section80d: { limit: section80dLimit, used: section80dUsed },
-    section80c: { limit: section80cLimit, used: section80cUsed },
+    ccd1: { limit: ccd1Limit, used: ccd1Used, missed: Math.max(0, ccd1Limit - ccd1Used) },
+    ccd1b: { limit: ccd1bLimit, used: ccd1bUsed, missed: Math.max(0, ccd1bLimit - ccd1bUsed) },
+    ccd2: {
+      potential: basicSalary * (regime === 'new' ? newCcd2Pct : oldCcd2Pct),
+      limitOld: basicSalary * oldCcd2Pct,
+      limitNew: basicSalary * newCcd2Pct,
+    },
+    section24b: { limit: regime === 'old' ? 200000 : 0, used: section24bUsed },
+    section80d: { limit: regime === 'old' ? 50000 : 0, used: section80dUsed },
+    section80c: { limit: regime === 'old' ? 150000 : 0, used: section80cUsed },
     taxWithNPS,
     taxWithoutNPS,
     taxSaved: taxWithoutNPS - taxWithNPS,
     oldTaxDetails,
     newTaxDetails,
-    theoreticalMinimumTax: leakageInfo.theoreticalMinimumTax,
+    theoreticalMinimumTax: Math.min(shared.old.totalTax, shared.new.totalTax),
   }
 }

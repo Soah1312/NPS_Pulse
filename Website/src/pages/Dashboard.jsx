@@ -20,7 +20,6 @@ import {
   getMilestoneAge, 
   computeWhatIfScenarios, 
    computeTaxSavings,
-   computeTax,
   getMaxEquityPct, 
   SCHEME_E_RETURN, 
   SCHEME_C_RETURN, 
@@ -260,14 +259,8 @@ export default function Dashboard() {
       }
 
       const taxData = computeTaxSavings(userData);
-      const annualIncome = (parseFloat(userData.monthlyIncome) || 0) * 12;
-      const employerNPS = Math.round(taxData.ccd2?.potential || 0);
-      const newRegimeTax = computeTax(annualIncome, 'new', 0);
-      const oldRegimeTax = computeTax(
-         annualIncome,
-         'old',
-         taxData.ccd1.used + 50000 + employerNPS
-      );
+      const newRegimeTax = Number(taxData.newTax) || 0;
+      const oldRegimeTax = Number(taxData.oldTax) || 0;
 
       const delta = Math.abs(oldRegimeTax - newRegimeTax);
 
@@ -280,7 +273,7 @@ export default function Dashboard() {
          };
       }
 
-      const betterRegime = newRegimeTax < oldRegimeTax ? 'New Regime' : 'Old Regime';
+      const betterRegime = (taxData.recommendedRegime === 'old' ? 'Old Regime' : 'New Regime');
       return {
          label: 'Tax Opportunity Detected',
          detail: `${betterRegime} can save ${formatIndian(delta)} per year`,
