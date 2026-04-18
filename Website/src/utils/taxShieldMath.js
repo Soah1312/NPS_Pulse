@@ -97,11 +97,14 @@ function totalTaxWithCessFromTaxable(taxableIncome, taxAfterRebate, isNewRegime)
 function buildOldRegimeDeductions(p) {
   const D = DEDUCTION_LIMITS;
   const deductions = {};
+  const basic = p.basicSalary || (p.grossIncome || 0) * 0.4;
+  const npsSelfAnnual = (p.npsSelfMonthly || 0) * 12;
 
   // Standard deduction
   deductions.standardDeduction = D.standardDeduction_old;
 
   // 80C bucket (EPF + ELSS + PPF + LIC + home loan principal, capped at 1.5L)
+  // 80CCD(1) for NPS self-contribution is also part of this same ₹1.5L bucket.
   const raw80C =
     (p.epfMonthly || 0) * 12 +
     (p.elssMonthly || 0) * 12 +
@@ -110,14 +113,20 @@ function buildOldRegimeDeductions(p) {
     (p.homeLoanPrincipal || 0);
   deductions.sec80C = Math.min(raw80C, D.sec80C);
 
+  // 80CCD(1) — NPS self-contribution (old regime), lower of 10% salary or ₹1.5L,
+  // and within the remaining 80C bucket headroom.
+  const ccd1SalaryCap = basic * 0.10;
+  const ccd1Eligible = Math.min(npsSelfAnnual, ccd1SalaryCap, D.sec80C);
+  const c80BucketRemaining = Math.max(0, D.sec80C - deductions.sec80C);
+  deductions.sec80CCD_1 = Math.min(ccd1Eligible, c80BucketRemaining);
+
   // 80CCD(1B) — NPS self, additional ₹50 000
   deductions.sec80CCD_1B = Math.min(
-    (p.npsSelfMonthly || 0) * 12,
+    Math.max(0, npsSelfAnnual - deductions.sec80CCD_1),
     D.sec80CCD_1B
   );
 
   // 80CCD(2) — Employer NPS (10% of basic salary)
-  const basic = p.basicSalary || (p.grossIncome || 0) * 0.4;
   deductions.sec80CCD_2 = Math.min(
     (p.npsEmployerMonthly || 0) * 12,
     basic * D.sec80CCD_2_cap_pct
@@ -197,7 +206,7 @@ export function computeTaxSavings(userData) {
 
   let   newBaseTax     = calcSlabTax(newTaxable, NEW_REGIME_SLABS);
 
-  // Rebate 87A — new regime (if taxable ≤ 7L, max rebate ₹25 000)
+  // Rebate 87A — new regime (if taxable ≤ 12L, max rebate ₹60 000)
   const new87AApplied  = newTaxable <= D.rebate87A_new_limit
     ? Math.min(newBaseTax, D.rebate87A_new)
     : 0;
@@ -214,7 +223,7 @@ export function computeTaxSavings(userData) {
   const leakages = [];
 
   // Leakage 1 — 80CCD(1B) not fully utilised
-  const nps1BUsed    = Math.min((p.npsSelfMonthly || 0) * 12, D.sec80CCD_1B);
+  const nps1BUsed    = oldDed.sec80CCD_1B;
   const nps1BGap     = D.sec80CCD_1B - nps1BUsed;
   if (nps1BGap > 0 && recommendedRegime === 'OLD') {
     const taxRate    = _marginalRate(oldTaxable);
@@ -229,13 +238,8 @@ export function computeTaxSavings(userData) {
   }
 
   // Leakage 2 — 80C not fully utilised
-  const raw80C =
-    (p.epfMonthly || 0) * 12 +
-    (p.elssMonthly || 0) * 12 +
-    (p.ppfMonthly || 0) * 12 +
-    (p.licPremium || 0) +
-    (p.homeLoanPrincipal || 0);
-  const c80Gap = Math.max(0, D.sec80C - raw80C);
+  const c80Used = (oldDed.sec80C || 0) + (oldDed.sec80CCD_1 || 0);
+  const c80Gap = Math.max(0, D.sec80C - c80Used);
   if (c80Gap > 0 && recommendedRegime === 'OLD') {
     const taxRate = _marginalRate(oldTaxable);
     leakages.push({
@@ -301,7 +305,7 @@ export function computeTaxSavings(userData) {
 
   // ── NPS SPECIFIC BENEFIT ──────────────────────────────────────────────────
   const npsAnnualContribution  = (p.npsSelfMonthly || 0) * 12;
-  const npsTotalDeduction      = Math.min(npsAnnualContribution, D.sec80CCD_1B);
+  const npsTotalDeduction      = oldDed.sec80CCD_1B;
   const npsTaxBenefit          = Math.round(
     npsTotalDeduction * _marginalRate(oldTaxable) * (1 + CESS_RATE)
   );
@@ -310,6 +314,7 @@ export function computeTaxSavings(userData) {
   const deductionBreakdown = [
     { label: 'Standard Deduction',      old: oldDed.standardDeduction, new: newStdDed },
     { label: 'Section 80C',             old: oldDed.sec80C,             new: 0 },
+    { label: 'NPS 80CCD(1)',            old: oldDed.sec80CCD_1,         new: 0 },
     { label: 'NPS 80CCD(1B)',           old: oldDed.sec80CCD_1B,        new: 0 },
     { label: 'Employer NPS 80CCD(2)',   old: oldDed.sec80CCD_2,         new: newCCD2 },
     { label: 'Health Insurance 80D',    old: oldDed.sec80D_self + oldDed.sec80D_parents, new: 0 },

@@ -15,7 +15,7 @@ import { writeUserProfileCache } from '../lib/userProfileCache';
 
 // ─── lucide icons ─────────────────────────────────────────────────────────────
 import {
-  ShieldCheck, TrendingDown, AlertTriangle, Zap, ChevronRight,
+  ShieldCheck, TrendingDown, Zap, ChevronRight,
   IndianRupee, BarChart3, Target, Info,
   CheckCircle2, Lightbulb, RefreshCw, Flame,
 } from 'lucide-react';
@@ -35,10 +35,14 @@ function mapUserDataToTaxInput(userData) {
   if (!userData) return {};
   const monthlyIncome = Math.max(0, Number(userData.monthlyIncome) || 0);
   const basicPct = Number(userData.basicSalaryPct) || 0.4;
+  const taxRegime = String(userData.taxRegime || 'new').toLowerCase() === 'old' ? 'old' : 'new';
+  const employerNpsPct = taxRegime === 'new' ? 0.14 : 0.10;
   const isGovtEmployee = typeof userData.isGovtEmployee === 'boolean'
     ? userData.isGovtEmployee
     : userData.workContext === 'Government';
-  const isMetroCity = Boolean(userData.isMetroCityForHRA)
+  const isMetroCity = typeof userData.isMetroCity === 'boolean'
+    ? userData.isMetroCity
+    : Boolean(userData.isMetroCityForHRA)
     || String(userData.cityType || '').toLowerCase().startsWith('metro');
 
   return {
@@ -50,7 +54,7 @@ function mapUserDataToTaxInput(userData) {
     // NPS
     npsSelfMonthly:       Math.max(0, Number(userData.npsContribution) || 0),
     npsEmployerMonthly:   userData.hasOptedForEmployerNPS
-      ? Math.round(monthlyIncome * basicPct * 0.10)
+      ? Math.round(monthlyIncome * basicPct * employerNpsPct)
       : 0,
 
     // Other investments mapped to 80C instruments
@@ -625,30 +629,6 @@ function TaxShieldContent() {
               New regime total tax: <strong className="text-[#1E293B]">{inr(result.new.totalTax)}</strong>
             </p>
           </div>
-        </div>
-      )}
-
-      {/* ═══ LEAKAGES ════════════════════════════════════════════════════════ */}
-      {tab === 'leakages' && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-full bg-[#EF4444]/15 border-2 border-[#1E293B] flex items-center justify-center shadow-[2px_2px_0_0_#1E293B]">
-              <AlertTriangle size={18} className="text-[#EF4444]" strokeWidth={2.5} />
-            </div>
-            <div>
-              <h3 className="font-heading font-extrabold text-[#1E293B] uppercase tracking-widest">Tax Leakage Analysis</h3>
-              <p className="text-[10px] font-bold text-[#1E293B]/40 uppercase tracking-widest">Opportunities to reduce your tax outgo</p>
-            </div>
-          </div>
-          {result.leakages.length === 0 ? (
-            <div className="text-center py-16">
-              <CheckCircle2 size={48} className="mx-auto mb-4 text-[#34D399]" strokeWidth={2} />
-              <p className="font-heading font-extrabold text-xl text-[#1E293B]">No leakages detected!</p>
-              <p className="text-[10px] font-bold text-[#1E293B]/40 uppercase tracking-widest mt-2">Your tax optimisation looks great.</p>
-            </div>
-          ) : (
-            result.leakages.map(l => <LeakageCard key={l.id} leakage={l} />)
-          )}
         </div>
       )}
 

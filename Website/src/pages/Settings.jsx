@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { 
   User, Wallet, Target, Shield, Settings as SettingsIcon, Info, 
   ChevronDown, ChevronUp, Save, X, Trash2, Download, LogOut, 
-  ExternalLink, CheckCircle2, AlertCircle, Bot
+  ExternalLink, CheckCircle2, AlertCircle, Bot, RefreshCw
 } from 'lucide-react';
 import { auth, db } from '../lib/firebase';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { deleteUser } from 'firebase/auth';
+import { isTestAccount } from '../lib/testMode';
 import { calculateRetirement, getMaxEquityPct, formatIndian } from '../utils/math';
 import DashboardLayout from '../components/DashboardLayout';
 import { useUser } from '../components/UserContext';
@@ -87,6 +88,8 @@ const PageContent = () => {
   const [formData, setFormData] = useState(userData || {});
   const [toast, setToast] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
   const parseNumericInput = (value) => {
     if (typeof value === 'number') {
@@ -242,6 +245,39 @@ const PageContent = () => {
       }
     } catch {
       showToast("Something went wrong. Please try again.", 'red');
+    }
+  };
+
+  const resetAccount = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    try {
+      setIsResetting(true);
+      
+      // Clear Firestore user document
+      const userDocRef = doc(db, 'users', user.uid);
+      await deleteDoc(userDocRef);
+      
+      // Clear localStorage profile cache
+      localStorage.removeItem(`userProfile_${user.uid}`);
+      localStorage.removeItem('userProfile');
+      
+      // Clear user context
+      setUserData(null);
+      
+      setShowResetModal(false);
+      showToast('Account data reset successfully! Redirecting to onboarding...', 'emerald');
+      
+      // Redirect to onboarding after a delay
+      setTimeout(() => {
+        window.location.href = '/onboarding';
+      }, 1500);
+    } catch (error) {
+      console.error('Error resetting account:', error);
+      showToast('Failed to reset account. Please try again.', 'red');
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -786,6 +822,15 @@ const PageContent = () => {
                   <Download className="w-4 h-4" /> Export My Data (.json)
                 </button>
                 
+                {isTestAccount(auth.currentUser?.email) && (
+                  <button 
+                  onClick={() => setShowResetModal(true)}
+                  className="touch-target px-6 py-3 bg-white border-2 border-[#FBBF24] text-[#D97706] rounded-full font-black uppercase tracking-widest text-[10px] shadow-[4px_4px_0_0_#FBBF24] flex items-center gap-2 hover:-translate-y-0.5 transition-all"
+                  >
+                    <RefreshCw className="w-4 h-4" /> Reset Account Data
+                  </button>
+                )}
+                
                 <button 
                 onClick={() => setShowDeleteModal(true)}
                 className="touch-target px-6 py-3 bg-white border-2 border-[#EF4444] text-[#EF4444] rounded-full font-black uppercase tracking-widest text-[10px] shadow-[4px_4px_0_0_#EF4444] flex items-center gap-2 hover:-translate-y-0.5 transition-all"
@@ -816,6 +861,38 @@ const PageContent = () => {
               {toast.type === 'red' ? <AlertCircle className="w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
               {toast.message}
           </div>
+        </div>
+      )}
+
+      {/* Reset Confirmation Modal */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-[#1E293B]/60 backdrop-blur-md animate-fade-in">
+            <div className="bg-white border-2 border-[#1E293B] rounded-[24px] sm:rounded-[32px] p-5 sm:p-10 max-w-lg w-full pop-shadow-vivid relative animate-scale-up max-h-[90dvh] overflow-y-auto pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+              <button onClick={() => setShowResetModal(false)} disabled={isResetting} className="touch-target absolute top-4 sm:top-6 right-4 sm:right-6 p-2 text-slate-300 hover:text-slate-900 disabled:opacity-50"><X /></button>
+              <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6 border-2 border-amber-500 shadow-[4px_4px_0_0_#FBBF24]">
+                  <RefreshCw className="w-10 h-10 text-amber-600" strokeWidth={2.5} />
+              </div>
+              <h2 className="font-heading font-black text-3xl text-[#1E293B] text-center mb-4">Reset Account Data?</h2>
+              <p className="text-center text-slate-500 font-bold mb-10 leading-relaxed uppercase text-[10px] tracking-widest">
+                  This will clear all your profile data and allow you to re-onboard from the beginning. Your account will remain active.
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                  <button 
+                  onClick={() => setShowResetModal(false)}
+                  disabled={isResetting}
+                  className="touch-target py-4 rounded-full border-2 border-[#1E293B] font-black uppercase tracking-widest text-xs hover:bg-slate-50 transition-all disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                  onClick={resetAccount}
+                  disabled={isResetting}
+                  className="touch-target py-4 bg-[#FBBF24] text-[#1E293B] border-2 border-[#1E293B] rounded-full font-black uppercase tracking-widest text-xs shadow-[4px_4px_0_0_#1E293B] hover:-translate-y-1 transition-all disabled:opacity-50"
+                  >
+                    {isResetting ? 'Resetting...' : 'Yes, Reset'}
+                  </button>
+              </div>
+            </div>
         </div>
       )}
 

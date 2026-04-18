@@ -70,6 +70,28 @@ const parseIntegerInput = (value, fallback) => {
   return Math.floor(parsed);
 };
 
+const sanitizeNumericInput = (value) => {
+  if (typeof value !== 'string') return '';
+  return value.replace(/[₹,\s]/g, '').replace(/[^0-9.]/g, '');
+};
+
+const formatIndianNumberInput = (value) => {
+  const normalized = sanitizeNumericInput(String(value ?? ''));
+  if (!normalized) return '';
+
+  const [integerPartRaw, decimalPart] = normalized.split('.');
+  const integerPart = integerPartRaw.replace(/^0+(?=\d)/, '');
+  if (!integerPart) return decimalPart !== undefined ? `0.${decimalPart}` : '0';
+
+  const lastThree = integerPart.slice(-3);
+  const remaining = integerPart.slice(0, -3);
+  const formattedInteger = remaining
+    ? `${remaining.replace(/\B(?=(\d{2})+(?!\d))/g, ',')},${lastThree}`
+    : lastThree;
+
+  return decimalPart !== undefined ? `${formattedInteger}.${decimalPart}` : formattedInteger;
+};
+
 const MemphisDotGrid = ({ className = '', opacity = 0.06 }) => (
   <div 
     className={`absolute inset-0 z-0 pointer-events-none ${className}`}
@@ -140,32 +162,48 @@ const CardOption = ({ label, selected, onClick, desc }) => (
   </button>
 );
 
-const InputField = ({ label, type, name, value, onChange, suffix, placeholder, helper, error }) => (
-  <div className="w-full text-left">
-    <label className="block text-sm font-bold uppercase tracking-widest text-[#1E293B]/70 mb-2">{label}</label>
-    <div className="relative">
-      <input 
-        type={type} 
-        name={name}
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        inputMode={type === 'number' ? 'decimal' : undefined}
-        className={`w-full border-2 rounded-xl p-3 text-lg sm:text-xl font-bold bg-white focus:outline-none transition-all cubic focus:-translate-y-1 block ${
-          error
-            ? 'border-[#EF4444] focus:shadow-[4px_4px_0_0_#EF4444]'
-            : 'border-[#1E293B] focus:shadow-[4px_4px_0_0_#8B5CF6]'
-        }`}
-      />
-      {suffix && <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1E293B]/40 font-bold">{suffix}</span>}
+const InputField = ({ label, type, name, value, onChange, suffix, placeholder, helper, error, autoFormatIndian = false }) => {
+  const shouldFormatNumber = type === 'number' && autoFormatIndian;
+
+  return (
+    <div className="w-full text-left">
+      <label className="block text-sm font-bold uppercase tracking-widest text-[#1E293B]/70 mb-2">{label}</label>
+      <div className="relative">
+        <input
+          type={shouldFormatNumber ? 'text' : type}
+          name={name}
+          value={shouldFormatNumber ? formatIndianNumberInput(value) : value}
+          onChange={(e) => {
+            if (!shouldFormatNumber) {
+              onChange(e);
+              return;
+            }
+
+            onChange({
+              target: {
+                name,
+                value: sanitizeNumericInput(e.target.value),
+              },
+            });
+          }}
+          placeholder={placeholder}
+          inputMode={type === 'number' ? 'decimal' : undefined}
+          className={`w-full border-2 rounded-xl p-3 text-lg sm:text-xl font-bold bg-white focus:outline-none transition-all cubic focus:-translate-y-1 block ${
+            error
+              ? 'border-[#EF4444] focus:shadow-[4px_4px_0_0_#EF4444]'
+              : 'border-[#1E293B] focus:shadow-[4px_4px_0_0_#8B5CF6]'
+          }`}
+        />
+        {suffix && <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[#1E293B]/40 font-bold">{suffix}</span>}
+      </div>
+      {error ? (
+        <p className="mt-2 text-xs font-bold text-[#EF4444] uppercase tracking-wide">{error}</p>
+      ) : (
+        helper && <p className="mt-2 text-xs font-bold text-[#1E293B]/60 uppercase tracking-wide">{helper}</p>
+      )}
     </div>
-    {error ? (
-      <p className="mt-2 text-xs font-bold text-[#EF4444] uppercase tracking-wide">{error}</p>
-    ) : (
-      helper && <p className="mt-2 text-xs font-bold text-[#1E293B]/60 uppercase tracking-wide">{helper}</p>
-    )}
-  </div>
-);
+  );
+};
 
 const TaxProfileField = ({ label, name, value, max, step = 5000, onNumberChange, onSliderChange }) => (
   <div className="space-y-3">
@@ -186,13 +224,20 @@ const TaxProfileField = ({ label, name, value, max, step = 5000, onNumberChange,
     <div className="relative">
       <span className="absolute left-3 top-1/2 -translate-y-1/2 font-black text-[#1E293B]/50">₹</span>
       <input
-        type="number"
+        type="text"
         name={name}
-        value={value}
+        value={formatIndianNumberInput(value)}
         min="0"
         max={max}
         inputMode="decimal"
-        onChange={onNumberChange}
+        onChange={(e) => {
+          onNumberChange({
+            target: {
+              name,
+              value: sanitizeNumericInput(e.target.value),
+            },
+          });
+        }}
         className="w-full border-2 border-[#1E293B] rounded-xl p-2.5 pl-8 text-sm font-bold bg-white focus:outline-none focus:shadow-[3px_3px_0_0_#8B5CF6]"
       />
     </div>
@@ -683,7 +728,17 @@ export default function Onboarding() {
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-2xl text-[#1E293B]/50">₹</span>
                   <input 
-                    type="number" name="monthlyIncome" value={formData.monthlyIncome} onChange={handleChange}
+                    type="text"
+                    name="monthlyIncome"
+                    value={formatIndianNumberInput(formData.monthlyIncome)}
+                    onChange={(e) => {
+                      handleChange({
+                        target: {
+                          name: 'monthlyIncome',
+                          value: sanitizeNumericInput(e.target.value),
+                        },
+                      });
+                    }}
                     placeholder="85,000" className={`w-full border-2 rounded-xl p-4 pl-10 text-2xl font-black bg-white focus:outline-none transition-all cubic block ${
                       errors.monthlyIncome
                         ? 'border-[#EF4444] focus:shadow-[4px_4px_0_0_#EF4444]'
@@ -775,8 +830,8 @@ export default function Onboarding() {
                       <div className="animate-fade-in space-y-4 pt-4 border-t-2 border-dashed border-[#1E293B]/20">
                         <p className="text-xs font-bold uppercase tracking-widest text-[#1E293B]/60 text-center">Tier I is your main retirement account</p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <InputField label="Monthly (₹)" type="number" name="npsContribution" value={formData.npsContribution} onChange={handleChange} placeholder="5,000" error={errors.npsContribution} />
-                          <InputField label="Total Corpus (₹)" type="number" name="npsCorpus" value={formData.npsCorpus} onChange={handleChange} placeholder="1,20,000" error={errors.npsCorpus} />
+                          <InputField label="Monthly (₹)" type="number" name="npsContribution" value={formData.npsContribution} onChange={handleChange} placeholder="5,000" error={errors.npsContribution} autoFormatIndian />
+                          <InputField label="Total Corpus (₹)" type="number" name="npsCorpus" value={formData.npsCorpus} onChange={handleChange} placeholder="1,20,000" error={errors.npsCorpus} autoFormatIndian />
                         </div>
                       </div>
                     )}
@@ -857,6 +912,7 @@ export default function Onboarding() {
                         onChange={handleChange}
                         placeholder="60,000"
                         error={errors.customLifestyleMonthlySpend}
+                        autoFormatIndian
                       />
                     </div>
                   )}
@@ -910,26 +966,28 @@ export default function Onboarding() {
                     <button onClick={() => setFormData({ ...formData, isGovtEmployee: true })} className={`py-3 rounded-xl border-2 border-[#1E293B] font-black uppercase tracking-widest text-xs ${formData.isGovtEmployee ? 'bg-[#34D399] text-[#1E293B] shadow-[3px_3px_0_0_#1E293B]' : 'bg-white text-[#1E293B]'}`}>Government</button>
                   </div>
 
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-black uppercase tracking-widest text-[#1E293B]/60">Basic Salary % of CTC</label>
-                      <span className="font-black text-[#8B5CF6]">{Math.round((Number(formData.basicSalaryPct) || 0.4) * 100)}%</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="20"
-                      max="80"
-                      step="1"
-                      value={Math.round((Number(formData.basicSalaryPct) || 0.4) * 100)}
-                      onChange={(e) => setFormData({ ...formData, basicSalaryPct: Number(e.target.value) / 100 })}
-                      className="w-full h-2 bg-[#E2E8F0] border border-[#1E293B]/30 rounded-lg appearance-none cursor-pointer accent-[#8B5CF6]"
-                    />
-                  </div>
-
                   <div className="grid grid-cols-2 gap-3">
                     <button onClick={() => setFormData({ ...formData, hasOptedForEmployerNPS: false })} className={`py-3 rounded-xl border-2 border-[#1E293B] font-black uppercase tracking-widest text-xs ${!formData.hasOptedForEmployerNPS ? 'bg-[#1E293B] text-white shadow-[3px_3px_0_0_#FBBF24]' : 'bg-white text-[#1E293B]'}`}>No Employer NPS</button>
                     <button onClick={() => setFormData({ ...formData, hasOptedForEmployerNPS: true })} className={`py-3 rounded-xl border-2 border-[#1E293B] font-black uppercase tracking-widest text-xs ${formData.hasOptedForEmployerNPS ? 'bg-[#1E293B] text-white shadow-[3px_3px_0_0_#FBBF24]' : 'bg-white text-[#1E293B]'}`}>Employer NPS Enabled</button>
                   </div>
+
+                  {formData.hasOptedForEmployerNPS && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-black uppercase tracking-widest text-[#1E293B]/60">Basic Salary % of CTC</label>
+                        <span className="font-black text-[#8B5CF6]">{Math.round((Number(formData.basicSalaryPct) || 0.4) * 100)}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="20"
+                        max="80"
+                        step="1"
+                        value={Math.round((Number(formData.basicSalaryPct) || 0.4) * 100)}
+                        onChange={(e) => setFormData({ ...formData, basicSalaryPct: Number(e.target.value) / 100 })}
+                        className="w-full h-2 bg-[#E2E8F0] border border-[#1E293B]/30 rounded-lg appearance-none cursor-pointer accent-[#8B5CF6]"
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -945,7 +1003,7 @@ export default function Onboarding() {
                         <div>
                           <p className="font-bold text-[#1E293B]/60 uppercase tracking-widest text-xs mb-2">Approximate current savings</p>
                           <p className="text-[10px] font-black uppercase tracking-widest text-[#1E293B]/40 mb-3">Tag: You can change this later in Settings</p>
-                          <InputField label="Other Savings Corpus (₹)" type="number" name="totalSavings" value={formData.totalSavings} onChange={handleChange} placeholder="5,00,000" helper="Include only retirement-directed assets (exclude emergency fund)." error={errors.totalSavings} />
+                          <InputField label="Other Savings Corpus (₹)" type="number" name="totalSavings" value={formData.totalSavings} onChange={handleChange} placeholder="5,00,000" helper="Include only retirement-directed assets (exclude emergency fund)." error={errors.totalSavings} autoFormatIndian />
                         </div>
 
                         <div className="space-y-3">
@@ -1000,6 +1058,7 @@ export default function Onboarding() {
                               placeholder="2,000"
                               helper={`Model assumption: ${formatAnnualReturnPct(scheme.annualReturn)} p.a. (${scheme.assumptionLabel})`}
                               error={errors[scheme.monthlyField]}
+                              autoFormatIndian
                             />
                           ))}
                         </div>
