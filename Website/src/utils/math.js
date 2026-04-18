@@ -198,7 +198,7 @@ export function getRetirementGoalMonthly(userData, options = {}) {
   return 0
 }
 
-function projectMonthlyPensionForNpsContribution({
+function projectMonthlyRetirementIncomeForNpsContribution({
   npsCorpus,
   monthlyContribution,
   npsAnnualReturn,
@@ -215,7 +215,11 @@ function projectMonthlyPensionForNpsContribution({
   )
 
   const projectedTotal = projectedNpsValue + Math.max(0, Number(projectedOtherValue) || 0)
-  return (projectedTotal * ANNUITY_SPLIT * ANNUITY_RATE) / 12
+  const annuityMonthlyIncome = (projectedTotal * ANNUITY_SPLIT * ANNUITY_RATE) / 12
+  const lumpSumCorpus = projectedTotal * LUMP_SUM_SPLIT
+  const lumpSumMonthlyIncome = (lumpSumCorpus * RETIREMENT_GOAL_FALLBACK_SWR) / 12
+
+  return annuityMonthlyIncome + lumpSumMonthlyIncome
 }
 
 function estimateRequiredMonthlyNpsContributionForGoal({
@@ -234,7 +238,7 @@ function estimateRequiredMonthlyNpsContributionForGoal({
     return currentMonthly
   }
 
-  const currentProjectedPension = projectMonthlyPensionForNpsContribution({
+  const currentProjectedIncome = projectMonthlyRetirementIncomeForNpsContribution({
     npsCorpus,
     monthlyContribution: currentMonthly,
     npsAnnualReturn,
@@ -243,7 +247,7 @@ function estimateRequiredMonthlyNpsContributionForGoal({
     projectedOtherValue,
   })
 
-  if (currentProjectedPension >= safeGoal) {
+  if (currentProjectedIncome >= safeGoal) {
     return currentMonthly
   }
 
@@ -252,7 +256,7 @@ function estimateRequiredMonthlyNpsContributionForGoal({
   let guard = 0
 
   while (
-    projectMonthlyPensionForNpsContribution({
+    projectMonthlyRetirementIncomeForNpsContribution({
       npsCorpus,
       monthlyContribution: high,
       npsAnnualReturn,
@@ -269,7 +273,7 @@ function estimateRequiredMonthlyNpsContributionForGoal({
 
   for (let i = 0; i < 50; i++) {
     const mid = (low + high) / 2
-    const projectedPension = projectMonthlyPensionForNpsContribution({
+    const projectedIncome = projectMonthlyRetirementIncomeForNpsContribution({
       npsCorpus,
       monthlyContribution: mid,
       npsAnnualReturn,
@@ -278,7 +282,7 @@ function estimateRequiredMonthlyNpsContributionForGoal({
       projectedOtherValue,
     })
 
-    if (projectedPension >= safeGoal) {
+    if (projectedIncome >= safeGoal) {
       high = mid
     } else {
       low = mid
@@ -458,14 +462,25 @@ export function calculateRetirement(data) {
   const annuityCorpus        = projectedValue * ANNUITY_SPLIT
   const lumpSumCorpus        = projectedValue * LUMP_SUM_SPLIT
   const monthlyAnnuityIncome = (annuityCorpus * ANNUITY_RATE) / 12
+  const monthlyIncomeFromLumpSum = (lumpSumCorpus * RETIREMENT_GOAL_FALLBACK_SWR) / 12
+  const totalProjectedMonthlyIncome = monthlyAnnuityIncome + monthlyIncomeFromLumpSum
 
   const retirementGoalMonthly = getRetirementGoalMonthly(data, {
     presetGoalMonthly: monthlySpendAtRetirement,
     requiredCorpus,
   })
-  const projectedMonthlyPension = monthlyAnnuityIncome
-  const retirementGoalGap = Math.max(0, retirementGoalMonthly - projectedMonthlyPension)
-  const requiredMonthlyContributionForGoal = estimateRequiredMonthlyNpsContributionForGoal({
+  const projectedMonthlyPension = totalProjectedMonthlyIncome
+  const rawRetirementGoalGap = Math.max(0, retirementGoalMonthly - projectedMonthlyPension)
+  const fundedRatio = requiredCorpus > 0 ? projectedValue / requiredCorpus : 1
+  const isFundingSanityFailed = fundedRatio < 0.6
+  const minimumSaneCorpus = requiredCorpus * 0.6
+  const corpusShortfallToSanityThreshold = Math.max(0, minimumSaneCorpus - projectedValue)
+  const sanityIncomeGap = (corpusShortfallToSanityThreshold * ((ANNUITY_SPLIT * ANNUITY_RATE) + (LUMP_SUM_SPLIT * RETIREMENT_GOAL_FALLBACK_SWR))) / 12
+  const retirementGoalGap = isFundingSanityFailed
+    ? Math.max(rawRetirementGoalGap, sanityIncomeGap)
+    : rawRetirementGoalGap
+
+  const goalBasedRequiredContribution = estimateRequiredMonthlyNpsContributionForGoal({
     goalMonthly: retirementGoalMonthly,
     currentMonthlyContribution: monthlyContrib,
     npsCorpus,
@@ -474,8 +489,10 @@ export function calculateRetirement(data) {
     stepUpRate,
     projectedOtherValue,
   })
+  const corpusAlignedRequiredContribution = monthlyContrib + Math.max(0, monthlyGap)
+  const requiredMonthlyContributionForGoal = Math.max(goalBasedRequiredContribution, corpusAlignedRequiredContribution)
   const isRetirementGoalOnTrack =
-    retirementGoalGap <= 0 || requiredMonthlyContributionForGoal <= monthlyContrib
+    retirementGoalGap <= 0 && !isFundingSanityFailed
 
   // ── BLENDED RETURN (for display) ──
   const blendedReturn = annualReturn
@@ -514,11 +531,14 @@ export function calculateRetirement(data) {
     annuityCorpus,
     lumpSumCorpus,
     monthlyAnnuityIncome,
+    monthlyIncomeFromLumpSum,
     projectedMonthlyPension,
     retirementGoalMonthly,
     retirementGoalGap,
     requiredMonthlyContributionForGoal,
     isRetirementGoalOnTrack,
+    fundedRatio,
+    isFundingSanityFailed,
 
     // Meta
     blendedReturn,
