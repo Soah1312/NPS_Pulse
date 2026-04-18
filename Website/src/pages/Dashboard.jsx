@@ -137,12 +137,41 @@ export default function Dashboard() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [tourActive, setTourActive] = useState(false);
+   const [appliedScenarioTitle, setAppliedScenarioTitle] = useState('');
   const [simValues, setSimValues] = useState({
     npsContribution: 0,
     retireAge: 60,
     stepUp: 0,
-    npsEquity: 50
+      npsEquity: 50,
+      npsCorpus: 0,
+      totalSavings: 0,
+      lifestyle: 'comfortable',
   });
+
+   const buildSimulatorBaseline = (source) => ({
+      npsContribution: Number(source?.npsContribution) || 0,
+      retireAge: Number(source?.retireAge) || 60,
+      stepUp: Number(source?.stepUp) || 0,
+      npsEquity: Number(source?.npsEquity) || 50,
+      npsCorpus: Number(source?.npsCorpus) || 0,
+      totalSavings: Number(source?.totalSavings) || 0,
+      lifestyle: source?.lifestyle || 'comfortable',
+      lifestyleConfig: source?.lifestyleConfig,
+      retirementMode: source?.retirementMode,
+      npsUsage: source?.npsUsage,
+      usesPPF: Boolean(source?.usesPPF),
+      ppfMonthlyContribution: Number(source?.ppfMonthlyContribution) || 0,
+      usesEPFVPF: Boolean(source?.usesEPFVPF),
+      epfVpfMonthlyContribution: Number(source?.epfVpfMonthlyContribution) || 0,
+      usesMFSIP: Boolean(source?.usesMFSIP),
+      mfSipMonthlyContribution: Number(source?.mfSipMonthlyContribution) || 0,
+      usesStocksETF: Boolean(source?.usesStocksETF),
+      stocksEtfMonthlyContribution: Number(source?.stocksEtfMonthlyContribution) || 0,
+      usesFDRD: Boolean(source?.usesFDRD),
+      fdRdMonthlyContribution: Number(source?.fdRdMonthlyContribution) || 0,
+      usesOtherScheme: Boolean(source?.usesOtherScheme),
+      otherSchemeMonthlyContribution: Number(source?.otherSchemeMonthlyContribution) || 0,
+   });
 
   // State checks and Auth logic
   useEffect(() => {
@@ -180,12 +209,7 @@ export default function Dashboard() {
          if (cancelled) return;
 
          setUserData(data);
-         setSimValues({
-            npsContribution: data.npsContribution || 5000,
-            retireAge: data.retireAge || 60,
-            stepUp: data.stepUp || 0,
-            npsEquity: data.npsEquity || 50
-         });
+         setSimValues(buildSimulatorBaseline(data));
 
          if (!localStorage.getItem('retiresahi_tour_seen')) {
             setTimeout(() => setTourActive(true), 800);
@@ -747,8 +771,11 @@ export default function Dashboard() {
                              ? `Boost your monthly contribution to completely zero-out the retirement gap.`
                              : `Enable a 10% annual step-up to secure a significant surplus!`}
                         </h2>
-                        <button 
-                          onClick={() => setSimulatorOpen(true)}
+                                    <button 
+                                       onClick={() => {
+                                          setAppliedScenarioTitle('');
+                                          setSimulatorOpen(true);
+                                       }}
                           className="candy-btn w-full md:w-fit px-8 py-3 bg-[#8B5CF6] text-white font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 group cursor-pointer"
                         >
                           Try Simulator <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -812,7 +839,9 @@ export default function Dashboard() {
                       impact={s.impact} 
                       desc={s.desc} 
                       onClick={() => {
-                        setSimValues(prev => ({ ...prev, ...s.overrides }));
+                                    const baseline = buildSimulatorBaseline(userData);
+                                    setSimValues({ ...baseline, ...(s.overrides || {}) });
+                                    setAppliedScenarioTitle(s.title || 'Scenario');
                         setSimulatorOpen(true);
                       }} 
                     />
@@ -909,7 +938,10 @@ export default function Dashboard() {
       {/* --- Power Simulator Slide-up Panel --- */}
       {simulatorOpen && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-end animate-fade-in">
-           <div className="absolute inset-0 bg-[#1E293B]/40 backdrop-blur-sm" onClick={() => setSimulatorOpen(false)} />
+                <div className="absolute inset-0 bg-[#1E293B]/40 backdrop-blur-sm" onClick={() => {
+                   setAppliedScenarioTitle('');
+                   setSimulatorOpen(false);
+                }} />
            <div className="z-10 bg-white border-t-4 border-l-4 border-r-4 border-[#1E293B] rounded-t-[32px] sm:rounded-t-[40px] w-full max-w-4xl p-4 sm:p-8 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-12 shadow-[0_-12px_40px_rgba(0,0,0,0.15)] flex flex-col relative animate-slide-up no-scrollbar overflow-y-auto max-h-[90vh]">
               <div className="w-16 h-2 bg-[#1E293B]/10 rounded-full mx-auto mb-8 shrink-0" />
 
@@ -917,8 +949,16 @@ export default function Dashboard() {
                  <div>
                     <h2 className="font-heading font-black text-4xl text-[#1E293B] leading-none mb-2 tabular-nums">Decision Simulator</h2>
                     <p className="text-sm font-bold text-[#1E293B]/40 uppercase tracking-widest">Calculated using {(simResults?.blendedReturn * 100).toFixed(1)}% expected return.</p>
+                              {appliedScenarioTitle && (
+                                 <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full border-2 border-[#1E293B] bg-[#D1FAE5] text-[#065F46] font-black text-[10px] uppercase tracking-widest shadow-[2px_2px_0_0_#1E293B]">
+                                    Applied Scenario: {appliedScenarioTitle}
+                                 </div>
+                              )}
                  </div>
-                 <button onClick={() => setSimulatorOpen(false)} className="touch-target p-3 bg-[#F1F5F9] border-2 border-[#1E293B] rounded-full hover:bg-[#FEE2E2] hover:text-[#EF4444] transition-colors cursor-pointer pop-shadow" aria-label="Close simulator">
+                         <button onClick={() => {
+                            setAppliedScenarioTitle('');
+                            setSimulatorOpen(false);
+                         }} className="touch-target p-3 bg-[#F1F5F9] border-2 border-[#1E293B] rounded-full hover:bg-[#FEE2E2] hover:text-[#EF4444] transition-colors cursor-pointer pop-shadow" aria-label="Close simulator">
                     <X className="w-6 h-6" />
                  </button>
               </div>
@@ -1007,7 +1047,7 @@ export default function Dashboard() {
                        </div>
                     </div>
 
-                    <button 
+                              <button 
                       onClick={async () => {
                          const user = auth.currentUser;
                                      if (user) {
@@ -1021,6 +1061,7 @@ export default function Dashboard() {
                                         const nextUserData = { ...userData, ...simValues, ...simResults };
                                         setUserData(nextUserData);
                                         writeUserProfileCache(user.uid, nextUserData);
+                                        setAppliedScenarioTitle('');
                            setSimulatorOpen(false);
                          }
                       }}
