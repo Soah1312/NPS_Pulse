@@ -29,7 +29,6 @@ import {
   LIFESTYLE_MODES,
   LIFESTYLE_CATEGORY_BLUEPRINT,
   normalizeLifestyleConfig,
-  normalizeCategoryMix,
 } from '../constants/lifestyleConfig.js';
 
 const COLORS = {
@@ -54,49 +53,11 @@ const CATEGORIES = LIFESTYLE_CATEGORY_BLUEPRINT.map((item) => ({
 }));
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-const MAX_CATEGORY_MONTHLY_AMOUNT = 5000000;
+const MIN_CUSTOM_RETIREMENT_AMOUNT = 10000;
+const MAX_CUSTOM_RETIREMENT_AMOUNT = 500000;
 
 function getPresetFallbackSpend(monthlyIncome, preset) {
   return Math.round(monthlyIncome * (LIFESTYLE_MULTIPLIERS[preset] || LIFESTYLE_MULTIPLIERS.comfortable));
-}
-
-function calculateCustomSpendFromAmounts(categoryAmounts = {}) {
-  return CATEGORIES.reduce((sum, cat) => sum + Math.max(0, Number(categoryAmounts[cat.id]) || 0), 0);
-}
-
-function buildCategoryMixFromAmounts(categoryAmounts = {}) {
-  const total = calculateCustomSpendFromAmounts(categoryAmounts);
-
-  if (total <= 0) {
-    return normalizeCategoryMix();
-  }
-
-  const rawMix = CATEGORIES.reduce((acc, cat) => {
-    acc[cat.id] = ((Math.max(0, Number(categoryAmounts[cat.id]) || 0)) / total) * 100;
-    return acc;
-  }, {});
-
-  return normalizeCategoryMix(rawMix);
-}
-
-function splitSpendAcrossCategories(totalSpend, categoryMix = {}) {
-  const normalizedMix = normalizeCategoryMix(categoryMix);
-  const spend = Math.max(0, Math.round(Number(totalSpend) || 0));
-  const amounts = {};
-  let allocated = 0;
-
-  CATEGORIES.forEach((cat, index) => {
-    if (index === CATEGORIES.length - 1) {
-      amounts[cat.id] = Math.max(0, spend - allocated);
-      return;
-    }
-
-    const nextValue = Math.max(0, Math.round((normalizedMix[cat.id] / 100) * spend));
-    amounts[cat.id] = nextValue;
-    allocated += nextValue;
-  });
-
-  return amounts;
 }
 
 const LifestyleCard = ({ type, selected, onClick, monthlyIncome, yearsToRetire }) => {
@@ -209,12 +170,9 @@ const ModeSwitcher = ({ mode, onChange }) => (
   </div>
 );
 
-const CustomLifestyleEditor = ({ categoryAmounts, onCategoryAmountChange, monthlyIncome }) => {
-  const customMonthlySpend = calculateCustomSpendFromAmounts(categoryAmounts);
-  const categoryMix = buildCategoryMixFromAmounts(categoryAmounts);
-  const salaryUsagePct = monthlyIncome > 0 ? (customMonthlySpend / monthlyIncome) * 100 : 0;
-  const salarySavedPct = Math.max(0, 100 - salaryUsagePct);
-  const salaryOverdrawPct = Math.max(0, salaryUsagePct - 100);
+const CustomRetirementIncomeEditor = ({ amountInput, onAmountInputChange, validationError }) => {
+  const parsedAmount = Math.max(0, Number(String(amountInput || '').replace(/[^0-9.]/g, '')) || 0);
+  const annualPreview = parsedAmount * 12;
 
   return (
     <div className="bg-white border-2 border-[#1E293B] rounded-[20px] p-6 md:p-8 pop-shadow space-y-6">
@@ -223,67 +181,38 @@ const CustomLifestyleEditor = ({ categoryAmounts, onCategoryAmountChange, monthl
           <SlidersHorizontal className="w-5 h-5 text-[#8B5CF6]" />
         </div>
         <div>
-          <h3 className="font-heading font-black text-xl">Build Your Custom Monthly Lifestyle</h3>
-          <p className="text-xs font-bold uppercase tracking-widest text-[#1E293B]/50">Set rupee amounts by category. We auto-calculate total spend.</p>
+          <h3 className="font-heading font-black text-xl">What's your dream retirement income?</h3>
+          <p className="text-xs font-bold uppercase tracking-widest text-[#1E293B]/50">Enter the monthly amount you'd want to live comfortably in retirement</p>
         </div>
       </div>
 
-      <div className="rounded-xl border-2 border-[#1E293B] bg-[#FFFDF5] p-4">
-        <div className="text-[10px] font-black uppercase tracking-widest text-[#1E293B]/40">Monthly Spend (Auto)</div>
-        <div className="font-heading font-black text-2xl text-[#1E293B] mt-1">{formatIndian(customMonthlySpend)}</div>
-        <div className="text-[10px] font-bold uppercase tracking-widest text-[#1E293B]/40 mt-1">Based on category amounts</div>
-      </div>
-
-      <div className="space-y-4">
-        {CATEGORIES.map((cat) => {
-          const share = Number(categoryMix[cat.id] || 0);
-          const monthlyBucket = Math.max(0, Number(categoryAmounts[cat.id]) || 0);
-          const displayAmount = monthlyBucket > 0 ? Math.round(monthlyBucket) : '';
-          const Icon = cat.icon;
-
-          return (
-            <div key={cat.id} className="border-2 border-[#1E293B]/10 rounded-2xl p-4 space-y-3">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 rounded-full border-2 border-[#1E293B] flex items-center justify-center" style={{ backgroundColor: `${cat.color}22` }}>
-                    <Icon className="w-4 h-4" style={{ color: cat.color }} strokeWidth={2.5} />
-                  </div>
-                  <div className="font-bold text-sm uppercase tracking-widest flex items-center gap-1">
-                    {cat.name} <InfoTooltip text={DREAM_PLANNER_TIPS[cat.tooltipKey] || DREAM_PLANNER_TIPS.categoryHousing} size={12} />
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-[9px] font-black uppercase tracking-widest text-[#1E293B]/40">Share</div>
-                  <div className="font-heading font-bold text-sm">{share.toFixed(1)}%</div>
-                </div>
-              </div>
-
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#1E293B]/50 font-black">₹</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="500"
-                  inputMode="decimal"
-                  value={displayAmount}
-                  onChange={(e) => onCategoryAmountChange(cat.id, Number(e.target.value))}
-                  className="w-full border-2 border-[#1E293B]/20 rounded-lg pl-8 pr-3 py-2 text-sm font-black text-left focus:outline-none focus:shadow-[2px_2px_0_0_#8B5CF6]"
-                />
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className={`text-[10px] font-black uppercase tracking-widest px-3 py-2 rounded-xl inline-flex flex-wrap gap-2 border-2 border-[#1E293B] ${salaryOverdrawPct > 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
-        <span>Using {salaryUsagePct.toFixed(1)}% of monthly salary</span>
-        <span>•</span>
-        <span>Saving {salarySavedPct.toFixed(1)}%</span>
-        {salaryOverdrawPct > 0 && (
-          <>
-            <span>•</span>
-            <span>Overdrawn by {salaryOverdrawPct.toFixed(1)}%</span>
-          </>
+      <div className="rounded-xl border-2 border-[#1E293B] bg-[#FFFDF5] p-4 space-y-3">
+        <label className="text-[10px] font-black uppercase tracking-widest text-[#1E293B]/50 block">Monthly retirement income (today's ₹)</label>
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#1E293B]/50 font-black">₹</span>
+          <input
+            type="number"
+            min={MIN_CUSTOM_RETIREMENT_AMOUNT}
+            max={MAX_CUSTOM_RETIREMENT_AMOUNT}
+            step="1000"
+            inputMode="decimal"
+            value={amountInput}
+            placeholder="e.g. 75,000"
+            onChange={(e) => onAmountInputChange(e.target.value)}
+            className="w-full border-2 border-[#1E293B]/20 rounded-lg pl-8 pr-3 py-2 text-sm font-black text-left focus:outline-none focus:shadow-[2px_2px_0_0_#8B5CF6] bg-white"
+          />
+        </div>
+        <p className="text-[10px] font-bold text-[#1E293B]/55 uppercase tracking-widest">
+          This is in today's rupees — we'll adjust for inflation automatically
+        </p>
+        <p className="text-[11px] font-black text-[#1E293B] uppercase tracking-widest">
+          That's {formatIndian(annualPreview)} per year in retirement
+        </p>
+        <p className="text-[10px] font-black text-[#1E293B]/40 uppercase tracking-widest">
+          Min {formatIndian(MIN_CUSTOM_RETIREMENT_AMOUNT)} · Max {formatIndian(MAX_CUSTOM_RETIREMENT_AMOUNT)}
+        </p>
+        {validationError && (
+          <p className="text-[10px] font-black uppercase tracking-widest text-[#EF4444]">{validationError}</p>
         )}
       </div>
     </div>
@@ -339,6 +268,40 @@ const InflationRealityCheck = ({ yearsToRetire, monthlySpendToday }) => {
         </div>
       </div>
     </div>
+  );
+};
+
+const CustomGoalSummary = ({ monthlyAmount, yearsToRetire }) => {
+  const monthlyToday = Math.max(0, Number(monthlyAmount) || 0);
+  const monthlyAtRetirement = monthlyToday * Math.pow(1 + INFLATION_RATE, yearsToRetire);
+  const annualToday = monthlyToday * 12;
+  const annualAtRetirement = monthlyAtRetirement * 12;
+
+  return (
+    <section className="space-y-6">
+      <div className="flex items-center gap-4">
+        <h2 className="font-heading font-extrabold text-2xl md:text-3xl uppercase tracking-widest leading-none">Custom Goal Snapshot</h2>
+        <div className="flex-1 h-[2px] bg-[#1E293B]/10" />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-white border-2 border-[#1E293B] rounded-[16px] p-5 pop-shadow">
+          <div className="text-[9px] font-black uppercase tracking-widest text-[#1E293B]/40 mb-2">Today</div>
+          <div className="font-heading font-black text-2xl text-[#1E293B]">{formatIndian(monthlyToday)}/mo</div>
+          <div className="text-[10px] font-bold uppercase tracking-widest text-[#1E293B]/50 mt-1">
+            {formatIndian(annualToday)} per year
+          </div>
+        </div>
+
+        <div className="bg-white border-2 border-[#1E293B] rounded-[16px] p-5 pop-shadow">
+          <div className="text-[9px] font-black uppercase tracking-widest text-[#1E293B]/40 mb-2">At Retirement</div>
+          <div className="font-heading font-black text-2xl text-[#8B5CF6]">{formatIndian(monthlyAtRetirement)}/mo</div>
+          <div className="text-[10px] font-bold uppercase tracking-widest text-[#1E293B]/50 mt-1">
+            {formatIndian(annualAtRetirement)} per year
+          </div>
+        </div>
+      </div>
+    </section>
   );
 };
 
@@ -410,12 +373,14 @@ const PageContent = () => {
   const [planMode, setPlanMode] = useState(baselineConfig.mode);
   const [isModeTransitioning, setIsModeTransitioning] = useState(false);
   const [selectedLifestyle, setSelectedLifestyle] = useState(baselineConfig.preset);
-  const [categoryAmounts, setCategoryAmounts] = useState(() => {
-    const fallbackSpend = getPresetFallbackSpend(monthlyIncome, baselineConfig.preset);
-    return splitSpendAcrossCategories(
-      baselineConfig.customMonthlySpend || fallbackSpend,
-      baselineConfig.categories
-    );
+  const [customRetirementMonthlyAmountInput, setCustomRetirementMonthlyAmountInput] = useState(() => {
+    const existingCustomGoal = Math.max(0, Number(userData?.customRetirementMonthlyAmount) || 0);
+    if (existingCustomGoal > 0) {
+      return String(Math.round(existingCustomGoal));
+    }
+
+    const existingCustomSpend = Math.max(0, Number(baselineConfig.customMonthlySpend) || 0);
+    return existingCustomSpend > 0 ? String(Math.round(existingCustomSpend)) : '';
   });
   const modeTransitionFrameRef = useRef(null);
 
@@ -423,9 +388,15 @@ const PageContent = () => {
     const hydrated = JSON.parse(baselineConfigKey);
     setPlanMode(hydrated.mode);
     setSelectedLifestyle(hydrated.preset);
-    const fallbackSpend = getPresetFallbackSpend(monthlyIncome, hydrated.preset);
-    setCategoryAmounts(splitSpendAcrossCategories(hydrated.customMonthlySpend || fallbackSpend, hydrated.categories));
-  }, [baselineConfigKey, monthlyIncome]);
+    const existingCustomGoal = Math.max(0, Number(userData?.customRetirementMonthlyAmount) || 0);
+    if (existingCustomGoal > 0) {
+      setCustomRetirementMonthlyAmountInput(String(Math.round(existingCustomGoal)));
+      return;
+    }
+
+    const existingCustomSpend = Math.max(0, Number(hydrated.customMonthlySpend) || 0);
+    setCustomRetirementMonthlyAmountInput(existingCustomSpend > 0 ? String(Math.round(existingCustomSpend)) : '');
+  }, [baselineConfigKey, userData?.customRetirementMonthlyAmount]);
 
   useEffect(() => () => {
     if (modeTransitionFrameRef.current) {
@@ -433,15 +404,19 @@ const PageContent = () => {
     }
   }, []);
 
-  const customMonthlySpend = useMemo(
-    () => calculateCustomSpendFromAmounts(categoryAmounts),
-    [categoryAmounts]
+  const customRetirementMonthlyAmount = useMemo(
+    () => clamp(Math.max(0, Number(String(customRetirementMonthlyAmountInput || '').replace(/[^0-9.]/g, '')) || 0), 0, MAX_CUSTOM_RETIREMENT_AMOUNT),
+    [customRetirementMonthlyAmountInput]
   );
 
-  const customCategoryMix = useMemo(
-    () => buildCategoryMixFromAmounts(categoryAmounts),
-    [categoryAmounts]
-  );
+  const customRetirementValidationError = useMemo(() => {
+    if (planMode !== LIFESTYLE_MODES.CUSTOM) return '';
+    if (!String(customRetirementMonthlyAmountInput || '').trim()) return 'Please enter your dream retirement income.';
+    if (customRetirementMonthlyAmount < MIN_CUSTOM_RETIREMENT_AMOUNT || customRetirementMonthlyAmount > MAX_CUSTOM_RETIREMENT_AMOUNT) {
+      return `Enter an amount between ${formatIndian(MIN_CUSTOM_RETIREMENT_AMOUNT)} and ${formatIndian(MAX_CUSTOM_RETIREMENT_AMOUNT)}.`;
+    }
+    return '';
+  }, [planMode, customRetirementMonthlyAmountInput, customRetirementMonthlyAmount]);
 
   const simulationConfig = useMemo(
     () =>
@@ -449,12 +424,12 @@ const PageContent = () => {
         {
           mode: planMode,
           preset: selectedLifestyle,
-          customMonthlySpend: planMode === LIFESTYLE_MODES.CUSTOM ? customMonthlySpend : 0,
-          categories: planMode === LIFESTYLE_MODES.CUSTOM ? customCategoryMix : baselineConfig.categories,
+          customMonthlySpend: planMode === LIFESTYLE_MODES.CUSTOM ? customRetirementMonthlyAmount : 0,
+          categories: baselineConfig.categories,
         },
         selectedLifestyle
       ),
-    [planMode, selectedLifestyle, customMonthlySpend, customCategoryMix, baselineConfig.categories]
+    [planMode, selectedLifestyle, customRetirementMonthlyAmount, baselineConfig.categories]
   );
 
   const simulationConfigKey = useMemo(() => JSON.stringify(simulationConfig), [simulationConfig]);
@@ -479,9 +454,13 @@ const PageContent = () => {
     setIsModeTransitioning(true);
     setPlanMode(nextMode);
 
-    if (nextMode === LIFESTYLE_MODES.CUSTOM && customMonthlySpend <= 0) {
-      const fallbackSpend = getPresetFallbackSpend(monthlyIncome, selectedLifestyle);
-      setCategoryAmounts(splitSpendAcrossCategories(fallbackSpend, customCategoryMix));
+    if (nextMode === LIFESTYLE_MODES.CUSTOM && customRetirementMonthlyAmount <= 0) {
+      const fallbackSpend = clamp(
+        getPresetFallbackSpend(monthlyIncome, selectedLifestyle),
+        MIN_CUSTOM_RETIREMENT_AMOUNT,
+        MAX_CUSTOM_RETIREMENT_AMOUNT
+      );
+      setCustomRetirementMonthlyAmountInput(String(fallbackSpend));
     }
 
     modeTransitionFrameRef.current = requestAnimationFrame(() => {
@@ -491,29 +470,30 @@ const PageContent = () => {
     });
   };
 
-  const handleCategoryAmountChange = (categoryId, nextAmount) => {
-    setCategoryAmounts((prev) => ({
-      ...prev,
-      [categoryId]: clamp(Number(nextAmount) || 0, 0, MAX_CATEGORY_MONTHLY_AMOUNT),
-    }));
-  };
-
   const handleReset = () => {
     const hydrated = JSON.parse(baselineConfigKey);
     setPlanMode(hydrated.mode);
     setSelectedLifestyle(hydrated.preset);
-    const fallbackSpend = getPresetFallbackSpend(monthlyIncome, hydrated.preset);
-    setCategoryAmounts(splitSpendAcrossCategories(hydrated.customMonthlySpend || fallbackSpend, hydrated.categories));
+    const existingCustomGoal = Math.max(0, Number(userData?.customRetirementMonthlyAmount) || 0);
+    if (existingCustomGoal > 0) {
+      setCustomRetirementMonthlyAmountInput(String(Math.round(existingCustomGoal)));
+      return;
+    }
+    const existingCustomSpend = Math.max(0, Number(hydrated.customMonthlySpend) || 0);
+    setCustomRetirementMonthlyAmountInput(existingCustomSpend > 0 ? String(Math.round(existingCustomSpend)) : '');
   };
 
   const handleSave = async () => {
     if (!auth.currentUser) return;
+    if (customRetirementValidationError) return;
     setIsSaving(true);
 
     try {
       const dataToSave = {
         lifestyle: selectedLifestyle,
         lifestyleConfig: simulationConfig,
+        retirementGoalType: planMode === LIFESTYLE_MODES.CUSTOM ? 'custom' : 'preset',
+        customRetirementMonthlyAmount: planMode === LIFESTYLE_MODES.CUSTOM ? customRetirementMonthlyAmount : 0,
         score: simResults.score,
         projectedValue: simResults.projectedValue,
         requiredCorpus: simResults.requiredCorpus,
@@ -572,10 +552,10 @@ const PageContent = () => {
               <LifestyleCard type="premium" selected={selectedLifestyle === 'premium'} onClick={setSelectedLifestyle} monthlyIncome={monthlyIncome} yearsToRetire={yearsToRetire} />
             </div>
           ) : (
-            <CustomLifestyleEditor
-              categoryAmounts={categoryAmounts}
-              onCategoryAmountChange={handleCategoryAmountChange}
-              monthlyIncome={monthlyIncome}
+            <CustomRetirementIncomeEditor
+              amountInput={customRetirementMonthlyAmountInput}
+              onAmountInputChange={setCustomRetirementMonthlyAmountInput}
+              validationError={customRetirementValidationError}
             />
           )}
         </div>
@@ -583,11 +563,18 @@ const PageContent = () => {
 
       <InflationRealityCheck yearsToRetire={yearsToRetire} monthlySpendToday={simResults.monthlySpendToday} />
 
-      <CategoryBreakdown
-        categoryMix={simulationConfig.categories}
-        monthlySpendToday={simResults.monthlySpendToday}
-        monthlySpendRetirement={simResults.monthlySpendAtRetirement}
-      />
+      {planMode === LIFESTYLE_MODES.CUSTOM ? (
+        <CustomGoalSummary
+          monthlyAmount={customRetirementMonthlyAmount}
+          yearsToRetire={yearsToRetire}
+        />
+      ) : (
+        <CategoryBreakdown
+          categoryMix={simulationConfig.categories}
+          monthlySpendToday={simResults.monthlySpendToday}
+          monthlySpendRetirement={simResults.monthlySpendAtRetirement}
+        />
+      )}
 
       <section className="bg-white border-2 border-[#1E293B] rounded-[24px] overflow-hidden pop-shadow">
         <div className="w-1.5 absolute left-0 top-0 h-full bg-[#8B5CF6]" />
@@ -702,7 +689,7 @@ const PageContent = () => {
           <button
             type="button"
             onClick={handleSave}
-            disabled={isSaving || !hasChanges}
+            disabled={isSaving || !hasChanges || Boolean(customRetirementValidationError)}
             className="touch-target px-5 sm:px-8 py-3 bg-[#8B5CF6] border-2 border-[#1E293B] rounded-full shadow-[4px_4px_0_0_#1E293B] enabled:hover:-translate-y-0.5 enabled:active:translate-y-0.5 enabled:active:shadow-[2px_2px_0_0_#1E293B] transition-all text-white text-[10px] sm:text-xs font-black uppercase tracking-[2px] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSaving ? 'Saving...' : (
