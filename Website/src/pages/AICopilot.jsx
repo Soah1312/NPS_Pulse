@@ -56,39 +56,6 @@ function isCreatorIdentityQuestion(text) {
   return /\b(who\s+(created|made|built|developed)\s+(this\s+)?(platform|app|website|site)|who\s+is\s+behind\s+(this\s+)?(platform|app|website|site)|who(?:'s|\s+is)\s+(the\s+)?(creator|founder|team))\b/i.test(normalized);
 }
 
-const SCOPE_ALLOW_PATTERNS = [
-  /\b(nps|retire|retirement|pension|annuity|corpus|tax|80ccd|old\s+regime|new\s+regime)\b/i,
-  /\b(salary|ctc|job|offer|hike|appraisal|career|switch|promotion|compensation|employer)\b/i,
-  /\b(savings|income|expense|budget|loan|emi|debt|financial\s+planning|goal)\b/i,
-  /\b(epf|ppf|sip|mutual\s+fund|gratuity|esop|rsu)\b/i,
-];
-
-const SCOPE_BLOCK_PATTERNS = [
-  /\b(python|javascript|typescript|java|c\+\+|c#|react|node|sql|html|css)\b/i,
-  /\b(code|coding|program|debug|compile|algorithm|leetcode|script)\b/i,
-  /\b(recipe|cook|movie|series|song|lyrics|travel|itinerary|gaming)\b/i,
-  /\b(medical\s+advice|diagnose|symptom|legal\s+advice|contract\s+draft|court\s+case)\b/i,
-  /\b(bitcoin|ethereum|crypto\s+trading|meme\s+coin)\b/i,
-];
-
-function isFinanceScopeQuestion(text) {
-  if (typeof text !== 'string') return false;
-  const normalized = text.trim();
-  if (!normalized) return false;
-
-  const hasBlockedIntent = SCOPE_BLOCK_PATTERNS.some((pattern) => pattern.test(normalized));
-  if (hasBlockedIntent) return false;
-
-  return SCOPE_ALLOW_PATTERNS.some((pattern) => pattern.test(normalized));
-}
-
-function buildScopeGuardReply(displayData) {
-  const score = Math.max(0, Number(displayData?.score) || 0);
-  const monthlyGap = Math.max(0, Number(displayData?.monthlyGap) || 0);
-
-  return `Thanks for your question. I am focused on finance topics, so I cannot help with non-finance requests. I can help with retirement, NPS, tax, and job-related money decisions. Based on your profile, your score is ${score}/100 and your monthly gap is ₹${formatIndian(monthlyGap)}. If you want, ask: "If I get a 20% salary hike, how should I update my retirement plan?" or "Should I switch tax regimes this year?"`;
-}
-
 const markdownComponents = {
   p: (props) => <p className="mb-3 last:mb-0 leading-relaxed" {...props} />,
   strong: (props) => <strong className="font-black text-[#1E293B]" {...props} />,
@@ -467,25 +434,6 @@ const ChatInterface = () => {
       return;
     }
 
-    if (!isFinanceScopeQuestion(text)) {
-      const now = new Date();
-      setMessages((prev) => [
-        ...prev,
-        { role: 'user', content: text, timestamp: now },
-        {
-          role: 'assistant',
-          content: buildScopeGuardReply(displayData),
-          model: 'scope-guard',
-          fallbackUsed: false,
-          timestamp: new Date(),
-        },
-      ]);
-      setInputValue('');
-      setAssistantPlaceholderStageIndex(0);
-      setError(null);
-      return;
-    }
-
     const userMessage = { role: 'user', content: text, timestamp: new Date() };
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
@@ -581,9 +529,12 @@ New regime 87A rebate zero tax if income under 12L.
 
 IDENTITY RULE: If user asks who created this platform/app/website, reply exactly: Team Chakuli
 
-SCOPE: Answer NPS retirement tax career-affecting-NPS questions only.
-For off-topic questions pivot to one insight from their profile.
-Never answer coding recipes stocks crypto medical legal questions.
+SCOPE DECISION RULE (dynamic):
+1) First decide whether the user question is finance-related for this product.
+2) Treat as in-scope if it is about retirement, NPS, tax, savings, debt, budgeting, investing in the context of planning, or career decisions that affect personal finances (salary hikes, job switches, compensation structure).
+3) If out-of-scope, politely decline in 2-4 sentences and redirect to finance by giving exactly 2 suggested follow-up questions personalized with the user's context.
+4) Do not provide non-finance instructions (e.g., coding help, recipes, entertainment, unrelated technical troubleshooting).
+5) For in-scope questions, answer normally with the style rules below.
 
 STYLE: Warm direct concise. Use Indian formatting Lakh Crore.
 Always use ${displayData.firstName}'s actual computed numbers.

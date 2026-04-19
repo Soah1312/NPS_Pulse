@@ -7,21 +7,6 @@ const FALLBACK_MODEL = getEnv('GROQ_FALLBACK_MODEL') || 'openai/gpt-oss-120b';
 const MAX_MESSAGES = 12;
 const MAX_CHARS_PER_MESSAGE = 6000;
 
-const SCOPE_ALLOW_PATTERNS = [
-  /\b(nps|retire|retirement|pension|annuity|corpus|tax|80ccd|old\s+regime|new\s+regime)\b/i,
-  /\b(salary|ctc|job|offer|hike|appraisal|career|switch|promotion|compensation|employer)\b/i,
-  /\b(savings|income|expense|budget|loan|emi|debt|financial\s+planning|goal)\b/i,
-  /\b(epf|ppf|sip|mutual\s+fund|gratuity|esop|rsu)\b/i,
-];
-
-const SCOPE_BLOCK_PATTERNS = [
-  /\b(python|javascript|typescript|java|c\+\+|c#|react|node|sql|html|css)\b/i,
-  /\b(code|coding|program|debug|compile|algorithm|leetcode|script)\b/i,
-  /\b(recipe|cook|movie|series|song|lyrics|travel|itinerary|gaming)\b/i,
-  /\b(medical\s+advice|diagnose|symptom|legal\s+advice|contract\s+draft|court\s+case)\b/i,
-  /\b(bitcoin|ethereum|crypto\s+trading|meme\s+coin)\b/i,
-];
-
 function getEnv(name) {
   const value = process.env[name];
   return typeof value === 'string' ? value.trim() : '';
@@ -122,57 +107,6 @@ function parseRequestBody(req) {
   }
 
   return {};
-}
-
-function getLatestUserMessage(messages = []) {
-  for (let i = messages.length - 1; i >= 0; i -= 1) {
-    if (messages[i]?.role === 'user') {
-      return messages[i]?.content || '';
-    }
-  }
-  return '';
-}
-
-function isFinanceScopeQuestion(text) {
-  if (typeof text !== 'string') return false;
-  const normalized = text.trim();
-  if (!normalized) return false;
-
-  const hasBlockedIntent = SCOPE_BLOCK_PATTERNS.some((pattern) => pattern.test(normalized));
-  if (hasBlockedIntent) return false;
-
-  return SCOPE_ALLOW_PATTERNS.some((pattern) => pattern.test(normalized));
-}
-
-function buildScopeGuardReply() {
-  return 'Thanks for your question. I am focused on finance topics, so I cannot help with non-finance requests. I can help with retirement, NPS, tax, and career-money decisions (like job switches and compensation changes). Please ask a finance-focused question such as: "How should I adjust contributions after a salary hike?" or "Should I switch tax regimes this year?"';
-}
-
-function sendScopeGuardResponse(res, stream) {
-  const content = buildScopeGuardReply();
-
-  if (!stream) {
-    return res.status(200).json({
-      content,
-      model: 'scope-guard',
-      fallbackUsed: false,
-      scopeGuard: true,
-    });
-  }
-
-  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-store');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-
-  if (typeof res.flushHeaders === 'function') {
-    res.flushHeaders();
-  }
-
-  res.write(`data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`);
-  res.write('data: [DONE]\n\n');
-  res.end();
-  return null;
 }
 
 async function relayGroqStream(groqResponse, res, streamMeta = null) {
@@ -347,11 +281,6 @@ export default async function handler(req, res) {
     const messages = normalizeMessages(body.messages);
     const stream = Boolean(body.stream);
     const forceFallback = Boolean(body.forceFallback) && (isLocalhost || isLocalDebug);
-    const latestUserMessage = getLatestUserMessage(messages);
-
-    if (!isFinanceScopeQuestion(latestUserMessage)) {
-      return sendScopeGuardResponse(res, stream);
-    }
 
     const groqApiKey = getEnv('GROQ_API_KEY');
     if (!groqApiKey) {
