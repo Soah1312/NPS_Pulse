@@ -230,6 +230,21 @@ export default function Dashboard() {
       };
    }, [authLoading, currentUser, navigate]);
 
+   useEffect(() => {
+      if (!isMenuOpen) return undefined;
+
+      const previousOverflow = document.body.style.overflow;
+      const previousOverscroll = document.body.style.overscrollBehavior;
+
+      document.body.style.overflow = 'hidden';
+      document.body.style.overscrollBehavior = 'contain';
+
+      return () => {
+         document.body.style.overflow = previousOverflow;
+         document.body.style.overscrollBehavior = previousOverscroll;
+      };
+   }, [isMenuOpen]);
+
   // Derived metrics from user data using math utility
   const baseResults = useMemo(() => userData ? calculateRetirement(userData) : null, [userData]);
   
@@ -513,7 +528,7 @@ export default function Dashboard() {
       </nav>
 
       {/* --- Main Content area --- */}
-      <main className={`min-h-screen flex flex-col relative pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-0 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'lg:ml-24' : 'lg:ml-60'}`}>
+      <main className={`min-h-screen flex flex-col relative pb-[calc(5.75rem+env(safe-area-inset-bottom))] lg:pb-0 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'lg:ml-24' : 'lg:ml-60'}`}>
          <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.05]" style={{ backgroundImage: 'radial-gradient(#1E293B 1px, transparent 1px)', backgroundSize: '28px 28px' }} />
 
          {/* Top Bar */}
@@ -988,7 +1003,7 @@ export default function Dashboard() {
                    setAppliedScenarioTitle('');
                    setSimulatorOpen(false);
                 }} />
-           <div className="z-10 bg-white border-t-4 border-l-4 border-r-4 border-[#1E293B] rounded-t-[32px] sm:rounded-t-[40px] w-full max-w-4xl p-4 sm:p-8 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-12 shadow-[0_-12px_40px_rgba(0,0,0,0.15)] flex flex-col relative animate-slide-up no-scrollbar overflow-y-auto max-h-[90vh]">
+           <div className="z-10 bg-white border-t-4 border-l-4 border-r-4 border-[#1E293B] rounded-t-[32px] sm:rounded-t-[40px] w-full max-w-4xl p-4 sm:p-8 pb-[max(1rem,env(safe-area-inset-bottom))] sm:pb-12 shadow-[0_-12px_40px_rgba(0,0,0,0.15)] flex flex-col relative animate-slide-up no-scrollbar overflow-y-auto max-h-[calc(100dvh-0.5rem)]">
               <div className="w-16 h-2 bg-[#1E293B]/10 rounded-full mx-auto mb-8 shrink-0" />
 
               <div className="flex justify-between items-start mb-10 shrink-0">

@@ -240,7 +240,7 @@ export default function Learn() {
       </header>
 
       {/* --- Category Tab Bar (Sticky) --- */}
-      <div className="sticky top-[66px] md:top-[82px] z-50 bg-white border-b-2 border-[#1E293B] overflow-x-auto no-scrollbar scroll-smooth mobile-scroll-lock">
+      <div className="sticky top-[66px] md:top-[82px] z-50 bg-white border-b-2 border-[#1E293B] overflow-x-auto scroll-smooth mobile-scroll-lock">
          <div className="max-w-7xl mx-auto px-4 sm:px-6 h-14 sm:h-16 flex items-center justify-start md:justify-center gap-3 sm:gap-4 min-w-max">
             {categories.map(cat => (
               <button 

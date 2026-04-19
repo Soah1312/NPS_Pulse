@@ -31,6 +31,7 @@ export default function AuthModal({ isOpen, onClose }) {
     if (!isOpen) return undefined;
 
     const previousOverflow = document.body.style.overflow;
+    const previousOverscroll = document.body.style.overscrollBehavior;
     const handleEscape = (event) => {
       if (event.key === 'Escape') {
         onClose();
@@ -38,10 +39,12 @@ export default function AuthModal({ isOpen, onClose }) {
     };
 
     document.body.style.overflow = 'hidden';
+    document.body.style.overscrollBehavior = 'contain';
     window.addEventListener('keydown', handleEscape);
 
     return () => {
       document.body.style.overflow = previousOverflow;
+      document.body.style.overscrollBehavior = previousOverscroll;
       window.removeEventListener('keydown', handleEscape);
     };
   }, [isOpen, onClose]);
@@ -114,7 +117,7 @@ export default function AuthModal({ isOpen, onClose }) {
       
       {/* Modal Content */}
       <div 
-        className="relative bg-[#FFFDF5] border-2 border-[#1E293B] rounded-t-2xl sm:rounded-2xl w-full max-w-md overflow-hidden pop-shadow flex flex-col max-h-[calc(100dvh-0.5rem)] sm:max-h-[90vh]"
+        className="relative bg-[#FFFDF5] border-2 border-[#1E293B] rounded-t-2xl sm:rounded-2xl w-full max-w-md overflow-hidden pop-shadow flex flex-col max-h-[calc(100dvh-0.5rem)]"
         role="dialog"
         aria-modal="true"
         aria-label={isLogin ? 'Login modal' : 'Sign up modal'}
@@ -180,14 +183,14 @@ export default function AuthModal({ isOpen, onClose }) {
         `}</style>
         
         {/* Header */}
-        <div className="bg-[#8B5CF6] border-b-2 border-[#1E293B] px-4 py-4 sm:p-6 relative flex justify-between items-center text-white">
+        <div className="bg-[#8B5CF6] border-b-2 border-[#1E293B] pt-safe px-4 py-4 sm:p-6 relative flex justify-between items-center text-white">
           <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#FFFDF5_2px,transparent_2px)] [background-size:16px_16px]" />
           <h2 className="auth-title font-heading font-extrabold text-3xl relative z-10 m-0 pr-3">
             {isLogin ? 'Welcome Back!' : 'Start Your Journey'}
           </h2>
           <button 
             onClick={onClose}
-            className="touch-target w-11 h-11 sm:w-8 sm:h-8 rounded-full border-2 border-[#1E293B] bg-white flex items-center justify-center text-[#1E293B] shadow-[2px_2px_0_0_#1E293B] hover:-translate-y-0.5 hover:shadow-[3px_3px_0_0_#1E293B] active:translate-y-0.5 active:shadow-[1px_1px_0_0_#1E293B] transition-all relative z-10 p-0 cursor-pointer"
+            className="touch-target w-11 h-11 rounded-full border-2 border-[#1E293B] bg-white flex items-center justify-center text-[#1E293B] shadow-[2px_2px_0_0_#1E293B] hover:-translate-y-0.5 hover:shadow-[3px_3px_0_0_#1E293B] active:translate-y-0.5 active:shadow-[1px_1px_0_0_#1E293B] transition-all relative z-10 p-0 cursor-pointer"
             aria-label="Close authentication modal"
           >
             <X className="w-5 h-5" />

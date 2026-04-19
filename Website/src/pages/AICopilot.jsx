@@ -56,6 +56,39 @@ function isCreatorIdentityQuestion(text) {
   return /\b(who\s+(created|made|built|developed)\s+(this\s+)?(platform|app|website|site)|who\s+is\s+behind\s+(this\s+)?(platform|app|website|site)|who(?:'s|\s+is)\s+(the\s+)?(creator|founder|team))\b/i.test(normalized);
 }
 
+const SCOPE_ALLOW_PATTERNS = [
+  /\b(nps|retire|retirement|pension|annuity|corpus|tax|80ccd|old\s+regime|new\s+regime)\b/i,
+  /\b(salary|ctc|job|offer|hike|appraisal|career|switch|promotion|compensation|employer)\b/i,
+  /\b(savings|income|expense|budget|loan|emi|debt|financial\s+planning|goal)\b/i,
+  /\b(epf|ppf|sip|mutual\s+fund|gratuity|esop|rsu)\b/i,
+];
+
+const SCOPE_BLOCK_PATTERNS = [
+  /\b(python|javascript|typescript|java|c\+\+|c#|react|node|sql|html|css)\b/i,
+  /\b(code|coding|program|debug|compile|algorithm|leetcode|script)\b/i,
+  /\b(recipe|cook|movie|series|song|lyrics|travel|itinerary|gaming)\b/i,
+  /\b(medical\s+advice|diagnose|symptom|legal\s+advice|contract\s+draft|court\s+case)\b/i,
+  /\b(bitcoin|ethereum|crypto\s+trading|meme\s+coin)\b/i,
+];
+
+function isFinanceScopeQuestion(text) {
+  if (typeof text !== 'string') return false;
+  const normalized = text.trim();
+  if (!normalized) return false;
+
+  const hasBlockedIntent = SCOPE_BLOCK_PATTERNS.some((pattern) => pattern.test(normalized));
+  if (hasBlockedIntent) return false;
+
+  return SCOPE_ALLOW_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+function buildScopeGuardReply(displayData) {
+  const score = Math.max(0, Number(displayData?.score) || 0);
+  const monthlyGap = Math.max(0, Number(displayData?.monthlyGap) || 0);
+
+  return `Thanks for your question. I am focused on finance topics, so I cannot help with non-finance requests. I can help with retirement, NPS, tax, and job-related money decisions. Based on your profile, your score is ${score}/100 and your monthly gap is ₹${formatIndian(monthlyGap)}. If you want, ask: "If I get a 20% salary hike, how should I update my retirement plan?" or "Should I switch tax regimes this year?"`;
+}
+
 const markdownComponents = {
   p: (props) => <p className="mb-3 last:mb-0 leading-relaxed" {...props} />,
   strong: (props) => <strong className="font-black text-[#1E293B]" {...props} />,
@@ -224,7 +257,7 @@ const MessageBubble = ({ role, content, timestamp, model, fallbackUsed }) => {
   return (
     <div className={`flex flex-col ${isAI ? 'items-start' : 'items-end'}`}>
       <div className="flex items-center gap-2 mb-1">
-        <div className={`text-[9px] font-black uppercase tracking-widest text-slate-400 ${!isAI && 'text-right w-full'}`}>
+        <div className={`text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-400 ${!isAI && 'text-right w-full'}`}>
           {isAI ? `RetireSahi AI ${formatModelTag(model)}` : 'You'}{isAI && fallbackUsed ? ' [fallback]' : ''} • {new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </div>
       </div>
@@ -252,7 +285,7 @@ const MessageBubble = ({ role, content, timestamp, model, fallbackUsed }) => {
 
 const LoadingBubble = ({ statusText }) => (
   <div className="flex flex-col items-start">
-    <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">RetireSahi AI • {statusText}</div>
+    <div className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-400 mb-1">RetireSahi AI • {statusText}</div>
     <div className="bg-white border-2 border-[#1E293B] rounded-[18px_18px_18px_4px] p-4 pop-shadow flex gap-1.5">
       <div className="w-2 h-2 bg-[#F472B6] rounded-full animate-[dotPulse_1s_infinite_0ms]" />
       <div className="w-2 h-2 bg-[#F472B6] rounded-full animate-[dotPulse_1s_infinite_200ms]" />
@@ -273,7 +306,7 @@ const LoadingBubble = ({ statusText }) => (
 
 const StreamingBubble = ({ content, streamMeta }) => (
   <div className="flex flex-col items-start">
-    <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">
+    <div className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-400 mb-1">
       RetireSahi AI {formatModelTag(streamMeta?.model)}{streamMeta?.fallbackUsed ? ' [fallback]' : ''} • typing...
     </div>
     <div
@@ -427,6 +460,25 @@ const ChatInterface = () => {
         ...prev,
         { role: 'user', content: text, timestamp: now },
         { role: 'assistant', content: 'Team Chakuli', timestamp: new Date() },
+      ]);
+      setInputValue('');
+      setAssistantPlaceholderStageIndex(0);
+      setError(null);
+      return;
+    }
+
+    if (!isFinanceScopeQuestion(text)) {
+      const now = new Date();
+      setMessages((prev) => [
+        ...prev,
+        { role: 'user', content: text, timestamp: now },
+        {
+          role: 'assistant',
+          content: buildScopeGuardReply(displayData),
+          model: 'scope-guard',
+          fallbackUsed: false,
+          timestamp: new Date(),
+        },
       ]);
       setInputValue('');
       setAssistantPlaceholderStageIndex(0);
@@ -726,7 +778,7 @@ Never output hidden reasoning, chain-of-thought, or tags like <think>.
               )}
             </button>
           </div>
-          <div className="mt-2 px-2 text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-[#1E293B]/40">
+          <div className="mt-2 px-2 text-[10px] sm:text-xs font-black uppercase tracking-widest text-[#1E293B]/40">
             Testing tip: use /fallback before your prompt to force Llama fallback on localhost/dev.
           </div>
         </div>

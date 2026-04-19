@@ -72,3 +72,15 @@ h1, h2, h3, h4, h5, h6, .font-heading {
     overscroll-behavior: contain;
   }
 }
+
+@media (max-width: 640px) {
+  .text-\[9px\] {
+    font-size: 0.6875rem !important;
+    line-height: 1.25 !important;
+  }
+
+  .text-\[10px\] {
+    font-size: 0.75rem !important;
+    line-height: 1.25 !important;
+  }
+}

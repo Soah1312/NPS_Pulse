@@ -93,6 +93,21 @@ export default function DashboardLayout({ children, title, userData: passedUserD
     window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(isSidebarCollapsed));
   }, [isSidebarCollapsed]);
 
+  useEffect(() => {
+    if (!isMenuOpen) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    const previousOverscroll = document.body.style.overscrollBehavior;
+
+    document.body.style.overflow = 'hidden';
+    document.body.style.overscrollBehavior = 'contain';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.overscrollBehavior = previousOverscroll;
+    };
+  }, [isMenuOpen]);
+
   const handleLogout = async () => {
     invalidateUserProfileCache(currentUser?.uid);
     await signOut(auth);
@@ -218,7 +233,7 @@ export default function DashboardLayout({ children, title, userData: passedUserD
         </nav>
 
         {/* Main Content */}
-        <main className={`min-h-screen flex flex-col relative pb-[calc(5rem+env(safe-area-inset-bottom))] lg:pb-0 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'lg:ml-24' : 'lg:ml-60'}`}>
+        <main className={`min-h-screen flex flex-col relative pb-[calc(5.75rem+env(safe-area-inset-bottom))] lg:pb-0 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'lg:ml-24' : 'lg:ml-60'}`}>
           <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.05]" style={{ backgroundImage: 'radial-gradient(#1E293B 1px, transparent 1px)', backgroundSize: '28px 28px' }} />
 
           {/* Top Bar */}

@@ -955,7 +955,7 @@ const PageContent = () => {
 
       {/* Toast Notification */}
       {toast && (
-        <div className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] lg:bottom-12 left-1/2 -translate-x-1/2 z-50 animate-slide-up px-3 w-full max-w-xl">
+        <div className="fixed bottom-[calc(6.25rem+env(safe-area-inset-bottom))] lg:bottom-12 left-1/2 -translate-x-1/2 z-50 animate-slide-up px-3 w-full max-w-xl">
           <div className={`border-2 border-[#1E293B] px-8 py-4 rounded-full font-black text-xs uppercase tracking-[3px] shadow-[6px_6px_0_0_#1E293B] flex items-center gap-4 transition-colors`} style={{ backgroundColor: toast.type === 'red' ? '#EF4444' : toast.type === 'amber' ? '#FBBF24' : toast.type === 'emerald' ? '#34D399' : userData.score > simulatedResults.score ? '#F472B6' : '#FFFDF5' }}>
               {toast.type === 'red' ? <AlertCircle className="w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
               {toast.message}
@@ -966,7 +966,7 @@ const PageContent = () => {
       {/* Reset Confirmation Modal */}
       {showResetModal && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-[#1E293B]/60 backdrop-blur-md animate-fade-in">
-            <div className="bg-white border-2 border-[#1E293B] rounded-[24px] sm:rounded-[32px] p-5 sm:p-10 max-w-lg w-full pop-shadow-vivid relative animate-scale-up max-h-[90dvh] overflow-y-auto pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+            <div className="bg-white border-2 border-[#1E293B] rounded-[24px] sm:rounded-[32px] p-5 sm:p-10 max-w-lg w-full pop-shadow-vivid relative animate-scale-up max-h-[calc(100dvh-1rem)] overflow-y-auto pt-safe pb-[max(1.25rem,env(safe-area-inset-bottom))]">
               <button onClick={() => setShowResetModal(false)} disabled={isResetting} className="touch-target absolute top-4 sm:top-6 right-4 sm:right-6 p-2 text-slate-300 hover:text-slate-900 disabled:opacity-50"><X /></button>
               <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6 border-2 border-amber-500 shadow-[4px_4px_0_0_#FBBF24]">
                   <RefreshCw className="w-10 h-10 text-amber-600" strokeWidth={2.5} />
@@ -998,7 +998,7 @@ const PageContent = () => {
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-3 sm:p-4 bg-[#1E293B]/60 backdrop-blur-md animate-fade-in">
-            <div className="bg-white border-2 border-[#1E293B] rounded-[24px] sm:rounded-[32px] p-5 sm:p-10 max-w-lg w-full pop-shadow-vivid relative animate-scale-up max-h-[90dvh] overflow-y-auto pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+            <div className="bg-white border-2 border-[#1E293B] rounded-[24px] sm:rounded-[32px] p-5 sm:p-10 max-w-lg w-full pop-shadow-vivid relative animate-scale-up max-h-[calc(100dvh-1rem)] overflow-y-auto pt-safe pb-[max(1.25rem,env(safe-area-inset-bottom))]">
               <button onClick={() => setShowDeleteModal(false)} className="touch-target absolute top-4 sm:top-6 right-4 sm:right-6 p-2 text-slate-300 hover:text-slate-900"><X /></button>
               <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6 border-2 border-red-500 shadow-[4px_4px_0_0_#EF4444]">
                   <Trash2 className="w-10 h-10 text-red-500" strokeWidth={2.5} />

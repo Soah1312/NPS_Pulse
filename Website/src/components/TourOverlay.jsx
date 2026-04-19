@@ -71,7 +71,9 @@ export default function TourOverlay({ steps, onComplete, onSkip }) {
       }
 
       targetElementRef.current = el;
-      el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      const headerOffset = window.innerWidth < 1024 ? 96 : 80;
+      const targetTop = Math.max(0, el.getBoundingClientRect().top + window.scrollY - headerOffset);
+      window.scrollTo({ top: targetTop, behavior: 'smooth' });
       syncTargetRect();
     };
 

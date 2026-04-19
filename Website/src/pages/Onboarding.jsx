@@ -647,7 +647,7 @@ export default function Onboarding() {
       )}
 
       {step >= 1 && step <= 7 && (
-        <div className="z-10 w-full max-w-lg bg-white border-2 border-[#1E293B] rounded-3xl p-4 sm:p-6 md:p-8 pop-shadow animate-slide-up flex flex-col relative overflow-hidden h-auto min-h-[420px] sm:min-h-[450px] max-h-[calc(100dvh-1rem)] sm:max-h-[90vh]">
+        <div className="z-10 w-full max-w-lg bg-white border-2 border-[#1E293B] rounded-3xl p-4 sm:p-6 md:p-8 pop-shadow animate-slide-up flex flex-col relative overflow-hidden h-auto min-h-[360px] sm:min-h-[420px] max-h-[calc(100dvh-1rem)]">
           <div className="w-full mb-6 shrink-0 relative">
              <div className="flex justify-between items-center mb-3">
                {step > 1 ? (

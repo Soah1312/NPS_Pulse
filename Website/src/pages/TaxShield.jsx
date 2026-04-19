@@ -519,27 +519,31 @@ function RegimeFeaturesTable() {
       </div>
 
       <div className="border-2 border-[#1E293B] rounded-[16px] overflow-hidden mb-6">
-        <div className="grid grid-cols-3 bg-[#FFFDF5] border-b-2 border-[#1E293B]">
-          <div className="p-3 sm:p-4 font-black text-[10px] sm:text-xs text-[#1E293B] uppercase tracking-widest border-r-2 border-[#1E293B]">Feature</div>
-          <div className="p-3 sm:p-4 font-black text-[10px] sm:text-xs text-[#1E293B] uppercase tracking-widest border-r-2 border-[#1E293B] text-center">Old Regime</div>
-          <div className="p-3 sm:p-4 font-black text-[10px] sm:text-xs text-[#1E293B] uppercase tracking-widest flex justify-center items-center gap-2">
-            New Regime <Badge color="violet">2026</Badge>
+        <div className="overflow-x-auto mobile-scroll-lock">
+          <div className="min-w-[640px]">
+            <div className="grid grid-cols-3 bg-[#FFFDF5] border-b-2 border-[#1E293B]">
+              <div className="p-3 sm:p-4 font-black text-[10px] sm:text-xs text-[#1E293B] uppercase tracking-widest border-r-2 border-[#1E293B]">Feature</div>
+              <div className="p-3 sm:p-4 font-black text-[10px] sm:text-xs text-[#1E293B] uppercase tracking-widest border-r-2 border-[#1E293B] text-center">Old Regime</div>
+              <div className="p-3 sm:p-4 font-black text-[10px] sm:text-xs text-[#1E293B] uppercase tracking-widest flex justify-center items-center gap-2">
+                New Regime <Badge color="violet">2026</Badge>
+              </div>
+            </div>
+
+            {features.map((f, idx) => (
+              <div key={f.label} className={`grid grid-cols-3 border-b-2 border-[#1E293B] last:border-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
+                <div className="p-3 sm:p-4 text-[10px] sm:text-xs font-bold text-[#1E293B]/70 uppercase tracking-widest border-r-2 border-[#1E293B] flex items-center">
+                  {f.label}
+                </div>
+                <div className={`p-3 sm:p-4 text-xs sm:text-sm font-extrabold border-r-2 border-[#1E293B] text-center flex items-center justify-center ${f.winner === 'old' ? 'text-[#34D399] bg-[#34D399]/10' : 'text-[#1E293B]/40'}`}>
+                  {f.old}
+                </div>
+                <div className={`p-3 sm:p-4 text-xs sm:text-sm font-extrabold text-center flex items-center justify-center ${f.winner === 'new' ? 'text-[#34D399] bg-[#34D399]/10' : 'text-[#1E293B]/40'}`}>
+                  {f.new}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-        
-        {features.map((f, idx) => (
-          <div key={f.label} className={`grid grid-cols-3 border-b-2 border-[#1E293B] last:border-0 ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
-            <div className="p-3 sm:p-4 text-[10px] sm:text-xs font-bold text-[#1E293B]/70 uppercase tracking-widest border-r-2 border-[#1E293B] flex items-center">
-              {f.label}
-            </div>
-            <div className={`p-3 sm:p-4 text-xs sm:text-sm font-extrabold border-r-2 border-[#1E293B] text-center flex items-center justify-center ${f.winner === 'old' ? 'text-[#34D399] bg-[#34D399]/10' : 'text-[#1E293B]/40'}`}>
-              {f.old}
-            </div>
-            <div className={`p-3 sm:p-4 text-xs sm:text-sm font-extrabold text-center flex items-center justify-center ${f.winner === 'new' ? 'text-[#34D399] bg-[#34D399]/10' : 'text-[#1E293B]/40'}`}>
-              {f.new}
-            </div>
-          </div>
-        ))}
       </div>
       
       <div className="bg-[#8B5CF6]/10 border-2 border-[#1E293B] rounded-xl p-4 flex items-start gap-4">

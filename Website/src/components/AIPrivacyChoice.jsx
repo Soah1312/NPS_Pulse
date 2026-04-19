@@ -63,7 +63,7 @@ export default function AIPrivacyChoice({ onSelect, firstName }) {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '32px 24px',
+        padding: '24px 12px calc(24px + env(safe-area-inset-bottom))',
         background: '#FFFDF5',
       }}
     >
@@ -127,7 +127,7 @@ export default function AIPrivacyChoice({ onSelect, firstName }) {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))',
             gap: 16,
             marginBottom: 24,
           }}

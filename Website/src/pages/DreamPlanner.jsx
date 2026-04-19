@@ -669,7 +669,7 @@ const PageContent = () => {
         </div>
       </section>
 
-      <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] lg:bottom-0 left-0 dashboard-fixed-offset right-0 min-h-[4.75rem] lg:h-20 bg-white border-t-2 border-[#1E293B] z-40 px-3 sm:px-4 lg:px-6 py-2 sm:py-3 lg:py-0 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 shadow-[0_-8px_30px_rgba(0,0,0,0.05)]">
+      <div className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] lg:bottom-0 left-0 dashboard-fixed-offset right-0 min-h-[4.75rem] lg:h-20 bg-white border-t-2 border-[#1E293B] z-40 px-3 sm:px-4 lg:px-6 py-2 sm:py-3 lg:py-0 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 shadow-[0_-8px_30px_rgba(0,0,0,0.05)]">
         <div className="flex flex-col">
           <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Simulating</span>
           <span className="text-sm font-bold text-[#1E293B] uppercase tracking-wide">
@@ -702,7 +702,7 @@ const PageContent = () => {
       </div>
 
       {showToast && (
-        <div className="fixed bottom-[calc(10rem+env(safe-area-inset-bottom))] lg:bottom-24 left-1/2 -translate-x-1/2 z-50 animate-slide-up px-3 w-full max-w-xl">
+        <div className="fixed bottom-[calc(10.5rem+env(safe-area-inset-bottom))] lg:bottom-24 left-1/2 -translate-x-1/2 z-50 animate-slide-up px-3 w-full max-w-xl">
           <div className="bg-[#FBBF24] border-2 border-[#1E293B] px-6 py-3 rounded-full font-black text-xs uppercase tracking-widest shadow-[4px_4px_0_0_#1E293B] flex items-center gap-3">
             Dream updated! Your dashboard reflects your new plan.
           </div>

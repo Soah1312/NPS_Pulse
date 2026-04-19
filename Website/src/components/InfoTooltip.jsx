@@ -19,7 +19,7 @@ export default function InfoTooltip({ text, size = 14, className = '' }) {
   const recalc = useCallback(() => {
     if (!btnRef.current) return;
     const rect = btnRef.current.getBoundingClientRect();
-    const tipW = 260; // approximate max tooltip width
+    const tipW = Math.min(280, Math.max(220, window.innerWidth - 24)); // keep tooltip inside small screens
     const tipH = 120; // approximate max tooltip height
     const pad = 12;
 
@@ -57,7 +57,7 @@ export default function InfoTooltip({ text, size = 14, className = '' }) {
           role="tooltip"
           className={`
             info-tooltip-bubble
-            absolute z-[200] w-[240px] md:w-[280px]
+            absolute z-[200] w-[calc(100vw-1.5rem)] max-w-[240px] md:w-[280px] md:max-w-none
             bg-[#1E293B] text-white text-[11px] font-bold leading-relaxed tracking-wide
             rounded-xl p-4
             border-2 border-[#8B5CF6]
