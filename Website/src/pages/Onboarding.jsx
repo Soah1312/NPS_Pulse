@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, ArrowLeft, Upload, Check, Loader2, Activity, Sparkles, IndianRupee, Zap } from 'lucide-react';
+import { 
+  ArrowRight, ArrowLeft, Upload, Check, Loader2, Activity, Sparkles, IndianRupee, Zap,
+  UserCircle2, Briefcase, TrendingUp, Clock, Sun, ShieldCheck
+} from 'lucide-react';
 import { db, auth } from '../lib/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { calculateRetirement, getScoreBand } from '../utils/math';
@@ -132,7 +135,7 @@ const FinalScoreArc = ({ score = 82 }) => {
 
   return (
     <div className="relative w-full aspect-square max-w-[320px] mx-auto flex items-center justify-center animate-scale-up">
-      <div className="absolute inset-0 bg-[#34D399] rounded-full mix-blend-multiply opacity-50 -translate-x-4 translate-y-4" />
+      <div className="absolute inset-0 bg-[#34D399] rounded-full opacity-80 -translate-x-4 translate-y-4" />
       <div className="relative z-10 w-full h-full bg-white border-4 border-[#1E293B] rounded-full p-8 flex flex-col items-center justify-center pop-shadow">
         <svg viewBox="0 0 100 100" className="w-full h-full absolute inset-0 -rotate-90 p-4 pb-0 overflow-visible">
            <circle cx="50" cy="50" r="45" fill="none" stroke="#F1F5F9" strokeWidth="8" strokeDasharray="283" strokeLinecap="round" />
@@ -204,6 +207,35 @@ const InputField = ({ label, type, name, value, onChange, suffix, placeholder, h
       ) : (
         helper && <p className="mt-2 text-xs font-bold text-[#1E293B]/60 uppercase tracking-wide">{helper}</p>
       )}
+    </div>
+  );
+};
+
+const LEFT_PANEL_CONTENT = {
+  0: { title: "Initializing...", subtitle: "Preparing your secure environment.", icon: Loader2, spin: true, color: "text-[#8B5CF6]" },
+  1: { title: "Let's get personal.", subtitle: "Your retirement journey starts with a simple profile.", icon: UserCircle2, color: "text-[#34D399]" },
+  2: { title: "Career Profile", subtitle: "We adjust growth curves based on your sector.", icon: Briefcase, color: "text-[#FBBF24]" },
+  3: { title: "Your Baseline", subtitle: "We never store this data unencrypted.", icon: IndianRupee, color: "text-[#8B5CF6]" },
+  4: { title: "Current Strategy", subtitle: "Tell us where your money goes today.", icon: TrendingUp, color: "text-[#F472B6]" },
+  5: { title: "The Timeline", subtitle: "Compounding works best when given time.", icon: Clock, color: "text-[#34D399]" },
+  6: { title: "Golden Years", subtitle: "What does your dream retirement look like?", icon: Sun, color: "text-[#FBBF24]" },
+  7: { title: "Final Details", subtitle: "Locking in your current investments.", icon: ShieldCheck, color: "text-[#8B5CF6]" },
+  9: { title: "Crunching Numbers", subtitle: "Running simulations against your profile...", icon: Activity, color: "text-[#34D399]", spin: true },
+};
+
+const LeftPanelVisuals = ({ step }) => {
+  const content = LEFT_PANEL_CONTENT[step] || LEFT_PANEL_CONTENT[0];
+  const IconComponent = content.icon;
+  
+  return (
+    <div key={step} className="flex flex-col items-start w-full relative z-10 animate-fade-in pl-0 sm:pl-4 xl:pl-12">
+       <div className="w-20 h-20 md:w-24 md:h-24 rounded-3xl bg-white/10 backdrop-blur-md border-2 border-white/20 flex items-center justify-center mb-8 shadow-2xl">
+          <IconComponent className={`w-10 h-10 md:w-12 md:h-12 ${content.color} ${content.spin ? 'animate-spin' : ''}`} strokeWidth={2.5} />
+       </div>
+       <h1 className="font-heading font-black text-4xl md:text-5xl lg:text-7xl text-white mb-6 leading-[1.1]">{content.title}</h1>
+       <p className="text-sm md:text-base lg:text-lg font-bold text-slate-300 uppercase tracking-widest leading-relaxed">
+          {content.subtitle}
+       </p>
     </div>
   );
 };
@@ -611,8 +643,39 @@ export default function Onboarding() {
   const npsHybridGoalOnTrack = displayedGoalGapMonthly <= 0 && !isCriticalOrAtRisk;
   const contributionDelta = Math.max(0, (Number(results?.requiredMonthlyContributionForGoal) || 0) - (Number(results?.monthlyContrib) || 0));
 
+  const isNextDisabled =
+    (step === 1 && (!formData.firstName || !formData.age)) ||
+    (step === 2 && !formData.workContext) ||
+    (step === 3 && !formData.monthlyIncome) ||
+    (step === 4 && (!formData.retirementMode || (includesNps && !formData.npsUsage))) ||
+    (step === 6 && (
+      (formData.retirementGoalType === 'custom'
+        ? !(parseNumericInput(formData.customRetirementMonthlyAmount) >= MIN_CUSTOM_RETIREMENT_GOAL
+          && parseNumericInput(formData.customRetirementMonthlyAmount) <= MAX_CUSTOM_RETIREMENT_GOAL)
+        : !formData.lifestyle)
+    )) ||
+    (step === 7 && includesOtherSchemes && selectedSchemeConfigs.length === 0);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Enter') {
+        if (step >= 1 && step <= 7 && !isNextDisabled) {
+          e.preventDefault();
+          if (step === 7) {
+            handleSubmit();
+          } else {
+            handleNext();
+          }
+        }
+      }
+    };
+    
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [step, isNextDisabled, formData, parsedData]);
+
   return (
-    <div className="min-h-screen relative flex flex-col justify-center items-center px-3 sm:px-4 py-6 sm:py-12 overflow-hidden bg-[#FFFDF5] text-[#1E293B] selection:bg-[#F472B6] selection:text-white" style={{ fontFamily: '"Plus Jakarta Sans", sans-serif' }}>
+    <div className="flex flex-col lg:flex-row min-h-[100dvh] w-full overflow-hidden bg-[#FFFDF5] text-[#1E293B] selection:bg-[#F472B6] selection:text-white" style={{ fontFamily: '"Plus Jakarta Sans", sans-serif' }}>
       <style>{`
         h1, h2, h3, .font-heading { font-family: 'Outfit', sans-serif; }
         .cubic {  transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1); }
@@ -636,8 +699,28 @@ export default function Onboarding() {
         .animate-float { animation: float 4s ease-in-out infinite; }
       `}</style>
       
+      {/* LEFT PANEL */}
+      <div className={`${step === 10 ? 'flex w-full py-12 px-6 min-h-[55vh]' : 'hidden'} lg:flex lg:w-1/2 bg-[#1E293B] text-white p-8 lg:p-12 xl:p-16 flex-col justify-center relative overflow-hidden shrink-0 lg:min-h-screen z-20 shadow-[8px_0_24px_rgba(0,0,0,0.15)]`}>
+        {/* Decorative background shapes */}
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none opacity-20">
+           <div className="absolute -top-[20%] -left-[10%] w-[60%] h-[60%] rounded-full bg-gradient-to-br from-[#8B5CF6] to-transparent blur-3xl opacity-60" />
+           <div className="absolute top-[60%] -right-[20%] w-[70%] h-[70%] rounded-full bg-gradient-to-tl from-[#34D399] to-transparent blur-3xl opacity-40" />
+        </div>
+        
+        {step < 10 ? <LeftPanelVisuals step={step} /> : (
+          <div className="w-full max-w-sm mx-auto animate-fade-in flex flex-col items-center pl-0 sm:pl-4 xl:pl-12">
+            <h2 className="font-heading font-black text-3xl md:text-4xl lg:text-5xl text-white mb-10 text-center leading-tight">Your Score<br/>Is Ready</h2>
+            <div className="w-full flex justify-center">
+              <FinalScoreArc score={results.score} />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* RIGHT PANEL */}
+      <div className={`flex-1 relative flex flex-col justify-center items-center py-6 px-3 sm:px-4 md:px-8 min-h-[100dvh] overflow-y-auto w-full ${step === 10 ? 'bg-[#FFFDF5]' : ''}`}>
       <MemphisDotGrid />
-      <Confetti />
+      {step === 10 && <Confetti />}
 
       {step === 0 && (
         <div className="z-10 text-center animate-fade-in flex flex-col items-center">
@@ -1019,19 +1102,7 @@ export default function Onboarding() {
           <div className="pt-4 border-t-2 border-[#1E293B]/10 shrink-0 mt-auto bg-white sticky bottom-0 pb-[max(0.25rem,env(safe-area-inset-bottom))]">
              <button 
                onClick={step === 7 ? handleSubmit : handleNext}
-                disabled={
-                  (step === 1 && (!formData.firstName || !formData.age)) ||
-                  (step === 2 && !formData.workContext) ||
-                  (step === 3 && !formData.monthlyIncome) ||
-                  (step === 4 && (!formData.retirementMode || (includesNps && !formData.npsUsage))) ||
-                  (step === 6 && (
-                    (formData.retirementGoalType === 'custom'
-                      ? !(parseNumericInput(formData.customRetirementMonthlyAmount) >= MIN_CUSTOM_RETIREMENT_GOAL
-                        && parseNumericInput(formData.customRetirementMonthlyAmount) <= MAX_CUSTOM_RETIREMENT_GOAL)
-                      : !formData.lifestyle)
-                  )) ||
-                  (step === 7 && includesOtherSchemes && selectedSchemeConfigs.length === 0)
-                }
+                disabled={isNextDisabled}
                 className="candy-btn touch-target w-full py-4 text-base md:text-lg font-black uppercase tracking-widest pop-shadow flex justify-center items-center gap-3 cursor-pointer"
              >
                 {step === 7 ? 'See My Score' : 'Continue'}
@@ -1067,13 +1138,8 @@ export default function Onboarding() {
       )}
 
       {step === 10 && (
-        <div className="z-10 w-full max-w-4xl animate-slide-up flex flex-col lg:flex-row gap-8 items-center justify-center">
-          <div className="w-full lg:w-1/2 flex justify-center">
-             <FinalScoreArc score={results.score} />
-          </div>
-
-          <div className="w-full lg:w-1/2 flex flex-col gap-6">
-             <div className="bg-white border-2 border-[#1E293B] rounded-3xl p-6 md:p-8 pop-shadow">
+        <div className="z-10 w-full max-w-lg lg:max-w-xl animate-slide-up flex flex-col gap-6 items-center justify-center py-6">
+             <div className="w-full bg-white border-2 border-[#1E293B] rounded-3xl p-6 md:p-8 pop-shadow">
                <div className="font-bold uppercase tracking-widest text-[#1E293B]/60 text-xs md:text-sm mb-4">Your Retirement Outlook</div>
                <div className="grid grid-cols-2 gap-4 mb-6">
                  <div>
@@ -1191,9 +1257,9 @@ export default function Onboarding() {
              <button onClick={() => navigate('/dashboard')} className="candy-btn w-full py-4 text-lg md:text-xl font-black uppercase tracking-widest pop-shadow hover:bg-[#1E293B]">
                Go To Dashboard
              </button>
-          </div>
         </div>
       )}
+      </div>
     </div>
   );
 }
