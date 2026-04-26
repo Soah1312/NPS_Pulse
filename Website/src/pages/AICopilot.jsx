@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
-  Sparkles, Send, AlertCircle, RefreshCcw, ExternalLink, Cpu
+  Sparkles, Send, AlertCircle, RefreshCcw, ExternalLink, Cpu, Trash2
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -303,7 +303,15 @@ const StreamingBubble = ({ content, streamMeta }) => (
 
 const ChatInterface = () => {
   const { userData, setUserData } = useUser();
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState(() => {
+    try {
+      const uid = auth.currentUser?.uid || 'guest';
+      const saved = localStorage.getItem(`retiresahi_chat_history_${uid}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
@@ -314,9 +322,34 @@ const ChatInterface = () => {
   const scrollRef = useRef(null);
   const streamChunkCounterRef = useRef(0);
   const pendingScrollFrameRef = useRef(null);
+  const textareaRef = useRef(null);
+
+  useEffect(() => {
+    try {
+      const uid = auth.currentUser?.uid || 'guest';
+      localStorage.setItem(`retiresahi_chat_history_${uid}`, JSON.stringify(messages));
+    } catch (e) {
+      // Ignore
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
+    }
+  }, [inputValue]);
 
   const location = useLocation();
   const hasTriggeredInitial = useRef(false);
+
+  const handleClearChat = () => {
+    setMessages([]);
+    try {
+      const uid = auth.currentUser?.uid || 'guest';
+      localStorage.removeItem(`retiresahi_chat_history_${uid}`);
+    } catch(e) {}
+  };
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -651,6 +684,11 @@ Never output hidden reasoning, chain-of-thought, or tags like <think>.
           </div>
         ) : (
           <div className="max-w-4xl mx-auto w-full space-y-8">
+            <div className="flex justify-end mb-[-1rem]">
+              <button onClick={handleClearChat} className="flex items-center gap-1.5 text-xs font-black uppercase tracking-widest text-[#1E293B]/40 hover:text-[#EF4444] transition-colors cursor-pointer">
+                <Trash2 className="w-3.5 h-3.5" /> Clear Chat
+              </button>
+            </div>
             {messages.map((m, i) => (
               <MessageBubble key={m.id || i} {...m} />
             ))}
@@ -709,18 +747,25 @@ Never output hidden reasoning, chain-of-thought, or tags like <think>.
 
       <div className="absolute left-0 right-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] lg:bottom-0 p-3 sm:p-4 md:p-8 bg-gradient-to-t from-[#FFFDF5] via-[#FFFDF5] to-transparent pointer-events-none">
         <div className="max-w-4xl mx-auto w-full pointer-events-auto">
-          <div className="bg-white border-2 border-[#1E293B] rounded-2xl sm:rounded-full p-2 sm:p-2.5 pl-4 sm:pl-6 md:p-3 md:pl-8 flex items-center gap-3 sm:gap-4 pop-shadow relative">
-            <input
+          <div className="bg-white border-2 border-[#1E293B] rounded-3xl p-2 sm:p-2.5 pl-4 sm:pl-6 md:p-3 md:pl-8 flex items-center gap-3 sm:gap-4 pop-shadow relative transition-all duration-200">
+            <textarea
+              ref={textareaRef}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
               placeholder="Ask me anything..."
-              className="flex-1 bg-transparent border-none outline-none text-sm md:text-lg font-bold text-[#1E293B] placeholder-slate-300"
+              className="flex-1 bg-transparent border-none outline-none text-sm md:text-lg font-bold text-[#1E293B] placeholder-slate-300 resize-none py-2 max-h-[120px] custom-scrollbar"
+              rows={1}
             />
             <button
               onClick={() => handleSend()}
               disabled={isLoading || isStreaming || !inputValue.trim()}
-              className="touch-target w-11 h-11 md:w-14 md:h-14 rounded-full bg-[#34D399] border-2 border-[#1E293B] flex items-center justify-center text-white pop-shadow transition-all hover:-translate-y-1 hover:translate-x-[-1px] disabled:opacity-50 disabled:cursor-not-allowed group cursor-pointer"
+              className="shrink-0 touch-target w-11 h-11 md:w-14 md:h-14 rounded-full bg-[#34D399] border-2 border-[#1E293B] flex items-center justify-center text-white pop-shadow transition-all hover:-translate-y-1 hover:translate-x-[-1px] disabled:opacity-50 disabled:cursor-not-allowed group cursor-pointer"
             >
               {isLoading ? (
                 <Cpu className="w-5 h-5 md:w-6 md:h-6 animate-spin text-[#1E293B]" strokeWidth={3} />
