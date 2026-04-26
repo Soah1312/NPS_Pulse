@@ -661,6 +661,16 @@ Never output hidden reasoning, chain-of-thought, or tags like <think>.
 
   return (
     <div className="h-[calc(100dvh-64px)] lg:h-[calc(100vh-64px)] flex flex-col relative overflow-hidden">
+      {messages.length > 0 && (
+        <div className="absolute top-4 right-4 md:top-6 md:right-8 z-20">
+          <button 
+            onClick={handleClearChat} 
+            className="flex items-center gap-1.5 md:gap-2 px-3 py-1.5 md:px-4 md:py-2 bg-white/80 backdrop-blur-sm border-2 border-[#1E293B] rounded-full text-[10px] md:text-xs font-black uppercase tracking-widest text-[#1E293B] hover:text-white hover:bg-[#EF4444] hover:border-[#EF4444] transition-all pop-shadow cursor-pointer"
+          >
+            <Trash2 className="w-3 h-3 md:w-4 md:h-4" /> Clear Chat
+          </button>
+        </div>
+      )}
       <div
         ref={scrollRef}
         className="flex-1 overflow-y-auto mobile-scroll-lock p-3 sm:p-4 md:p-8 space-y-6 sm:space-y-8 pb-[13.5rem] lg:pb-60"
@@ -683,12 +693,7 @@ Never output hidden reasoning, chain-of-thought, or tags like <think>.
             </div>
           </div>
         ) : (
-          <div className="max-w-4xl mx-auto w-full space-y-8">
-            <div className="flex justify-end mb-[-1rem]">
-              <button onClick={handleClearChat} className="flex items-center gap-1.5 text-xs font-black uppercase tracking-widest text-[#1E293B]/40 hover:text-[#EF4444] transition-colors cursor-pointer">
-                <Trash2 className="w-3.5 h-3.5" /> Clear Chat
-              </button>
-            </div>
+          <div className="max-w-4xl mx-auto w-full space-y-8 pt-10 md:pt-4">
             {messages.map((m, i) => (
               <MessageBubble key={m.id || i} {...m} />
             ))}
