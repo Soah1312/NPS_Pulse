@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import {
-  Sparkles, Send, AlertCircle, RefreshCcw, ExternalLink, Cpu, Trash2
+  Sparkles, Send, AlertCircle, RefreshCcw, ExternalLink, Cpu, Trash2, Square
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -93,7 +93,7 @@ const markdownComponents = {
   hr: (props) => <hr className="my-4 border-slate-200" {...props} />,
 };
 
-async function streamGroq({ messages, onChunk, onDone, onError, onMeta, forceFallback = false }) {
+async function streamGroq({ messages, onChunk, onDone, onError, onMeta, forceFallback = false, signal }) {
   let response;
 
   if (USE_DIRECT_GROQ_DEV) {
@@ -118,6 +118,7 @@ async function streamGroq({ messages, onChunk, onDone, onError, onMeta, forceFal
           max_tokens: 1024,
           stream: true,
         }),
+        signal,
       });
 
       if (response.ok) {
@@ -161,6 +162,7 @@ async function streamGroq({ messages, onChunk, onDone, onError, onMeta, forceFal
         stream: true,
         forceFallback,
       }),
+      signal,
     });
   }
 
@@ -323,6 +325,14 @@ const ChatInterface = () => {
   const streamChunkCounterRef = useRef(0);
   const pendingScrollFrameRef = useRef(null);
   const textareaRef = useRef(null);
+  const abortControllerRef = useRef(null);
+
+  const handleStop = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     try {
@@ -584,17 +594,20 @@ Never output hidden reasoning, chain-of-thought, or tags like <think>.
       { role: "user", content: text }
     ];
 
+    let fullContent = '';
+    let currentMeta = null;
+
     try {
       setIsStreaming(true);
       setStreamingContent('');
       setStreamingMeta(null);
-      let fullContent = '';
-      let currentMeta = null;
+      
+      abortControllerRef.current = new AbortController();
 
-      await streamGroq(
-        {
-          messages: chatHistory,
-          forceFallback,
+      await streamGroq({
+        messages: chatHistory,
+        forceFallback,
+        signal: abortControllerRef.current.signal,
           onChunk: (chunk) => {
           if (isLoading) setIsLoading(false);
           fullContent += chunk;
@@ -632,11 +645,29 @@ Never output hidden reasoning, chain-of-thought, or tags like <think>.
         }
       );
     } catch (err) {
+      if (err.name === 'AbortError') {
+        const finalContent = sanitizeAssistantContent(fullContent);
+        if (finalContent) {
+          setMessages((prev) => [...prev, {
+            role: 'assistant',
+            content: finalContent,
+            model: currentMeta?.model || null,
+            fallbackUsed: Boolean(currentMeta?.fallbackUsed),
+            timestamp: new Date(),
+          }]);
+        }
+        streamChunkCounterRef.current = 0;
+        setStreamingContent('');
+        setStreamingMeta(null);
+        setIsStreaming(false);
+        return;
+      }
       setError(err.message || 'Something went wrong');
       setStreamingContent('');
       setStreamingMeta(null);
       setIsStreaming(false);
     } finally {
+      abortControllerRef.current = null;
       setIsLoading(false);
     }
   }, [displayData, inputValue, messages, privacyMode, isFullMode, isLoading, scheduleStreamScroll]);
@@ -767,17 +798,27 @@ Never output hidden reasoning, chain-of-thought, or tags like <think>.
               className="flex-1 bg-transparent border-none outline-none text-sm md:text-lg font-bold text-[#1E293B] placeholder-slate-300 resize-none py-2 max-h-[120px] custom-scrollbar"
               rows={1}
             />
-            <button
-              onClick={() => handleSend()}
-              disabled={isLoading || isStreaming || !inputValue.trim()}
-              className="shrink-0 touch-target w-11 h-11 md:w-14 md:h-14 rounded-full bg-[#34D399] border-2 border-[#1E293B] flex items-center justify-center text-white pop-shadow transition-all hover:-translate-y-1 hover:translate-x-[-1px] disabled:opacity-50 disabled:cursor-not-allowed group cursor-pointer"
-            >
-              {isLoading ? (
-                <Cpu className="w-5 h-5 md:w-6 md:h-6 animate-spin text-[#1E293B]" strokeWidth={3} />
-              ) : (
-                <Send className="w-5 h-5 md:w-6 md:h-6 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform text-[#1E293B]" strokeWidth={3} />
-              )}
-            </button>
+            {isStreaming ? (
+              <button
+                onClick={handleStop}
+                className="shrink-0 touch-target w-11 h-11 md:w-14 md:h-14 rounded-full bg-[#EF4444] border-2 border-[#1E293B] flex items-center justify-center text-white pop-shadow transition-all hover:-translate-y-1 hover:translate-x-[-1px] cursor-pointer group"
+                title="Stop generating"
+              >
+                <Square className="w-4 h-4 md:w-5 md:h-5 fill-white" strokeWidth={3} />
+              </button>
+            ) : (
+              <button
+                onClick={() => handleSend()}
+                disabled={isLoading || !inputValue.trim()}
+                className="shrink-0 touch-target w-11 h-11 md:w-14 md:h-14 rounded-full bg-[#34D399] border-2 border-[#1E293B] flex items-center justify-center text-white pop-shadow transition-all hover:-translate-y-1 hover:translate-x-[-1px] disabled:opacity-50 disabled:cursor-not-allowed group cursor-pointer"
+              >
+                {isLoading ? (
+                  <Cpu className="w-5 h-5 md:w-6 md:h-6 animate-spin text-[#1E293B]" strokeWidth={3} />
+                ) : (
+                  <Send className="w-5 h-5 md:w-6 md:h-6 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" strokeWidth={3} />
+                )}
+              </button>
+            )}
           </div>
           <div className="mt-2 px-2 text-[10px] sm:text-xs font-black uppercase tracking-widest text-[#1E293B]/40">
             Testing tip: use /fallback before your prompt to force Llama fallback on localhost/dev.
