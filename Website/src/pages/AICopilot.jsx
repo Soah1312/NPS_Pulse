@@ -168,7 +168,12 @@ async function streamGroq({ messages, onChunk, onDone, onError, onMeta, forceFal
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    onError(error.error?.message || 'Stream failed');
+    if (response.status === 429) {
+      const retryAfter = error.retryAfterSeconds || 60;
+      onError(`⏱️ Slow down! You've sent too many messages. Try again in ${retryAfter}s.`);
+    } else {
+      onError(error.error?.message || 'Stream failed');
+    }
     return;
   }
 

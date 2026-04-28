@@ -6,6 +6,24 @@ const PRIMARY_MODEL = getEnv('GROQ_PRIMARY_MODEL') || 'qwen/qwen3-32b';
 const FALLBACK_MODEL = getEnv('GROQ_FALLBACK_MODEL') || 'openai/gpt-oss-120b';
 const MAX_MESSAGES = 12;
 const MAX_CHARS_PER_MESSAGE = 6000;
+const RATE_LIMIT_MAX = 10;       // max requests
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // per 60 seconds
+
+// In-memory rate limit store: uid -> array of timestamps
+const rateLimitStore = new Map();
+
+function checkRateLimit(uid) {
+  const now = Date.now();
+  const windowStart = now - RATE_LIMIT_WINDOW_MS;
+  const timestamps = (rateLimitStore.get(uid) || []).filter(t => t > windowStart);
+  if (timestamps.length >= RATE_LIMIT_MAX) {
+    const oldestInWindow = timestamps[0];
+    const retryAfterMs = RATE_LIMIT_WINDOW_MS - (now - oldestInWindow);
+    throw Object.assign(new Error('RATE_LIMITED'), { retryAfterMs });
+  }
+  timestamps.push(now);
+  rateLimitStore.set(uid, timestamps);
+}
 
 
 function getEnv(name) {
@@ -277,8 +295,14 @@ export default async function handler(req, res) {
 
     // Localhost dev fallback: allow requests through when token verification is flaky in local proxy chains.
     // Production traffic never matches localhost hostnames, so prod auth stays enforced.
+    let decodedUser = null;
     if (!isLocalhost) {
-      await verifyUserFromRequest(req, body);
+      decodedUser = await verifyUserFromRequest(req, body);
+    }
+
+    // Rate limiting: 10 requests per user per minute
+    if (decodedUser?.uid) {
+      checkRateLimit(decodedUser.uid);
     }
 
     const messages = normalizeMessages(body.messages);
@@ -324,6 +348,16 @@ export default async function handler(req, res) {
       fallbackUsed,
     });
   } catch (error) {
+    if (error.message === 'RATE_LIMITED') {
+      const retryAfter = Math.ceil((error.retryAfterMs || RATE_LIMIT_WINDOW_MS) / 1000);
+      res.setHeader('Retry-After', retryAfter);
+      return res.status(429).json({
+        error: `Slow down! You've hit the limit of ${RATE_LIMIT_MAX} messages per minute. Try again in ${retryAfter}s.`,
+        code: 'RATE_LIMITED',
+        retryAfterSeconds: retryAfter,
+      });
+    }
+
     if (error.message === 'AUTH_REQUIRED') {
       return res.status(401).json({
         error: 'Authentication required.',
