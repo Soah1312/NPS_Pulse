@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
-  Home, Shield, Moon, Bot, Settings, LogOut, Menu, X, Bell, BarChart2, PanelLeftClose, PanelLeftOpen
+  Home, Shield, Moon, Bot, Settings, LogOut, Menu, X, BarChart2, PanelLeftClose, PanelLeftOpen
 } from 'lucide-react';
 import { auth, db } from '../lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
@@ -260,10 +260,6 @@ export default function DashboardLayout({ children, title, userData: passedUserD
                 <div className="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full" style={{ backgroundColor: scoreInfo.color }} />
                 <span>{displayScore} <span className="hidden xs:inline">{scoreInfo.label}</span></span>
               </div>
-              <button className="p-1.5 md:p-2 text-[#1E293B]/60 hover:text-[#1E293B] relative">
-                <Bell className="w-5 h-5" />
-                <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#F472B6] rounded-full border-2 border-white" />
-              </button>
             </div>
           </header>
 

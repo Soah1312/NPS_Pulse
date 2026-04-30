@@ -3,11 +3,6 @@ import {
   Home,
   Coffee,
   Star,
-  UtensilsCrossed,
-  Heart,
-  Plane,
-  Users,
-  Shield,
   ArrowRight,
   RotateCcw,
   CheckCircle2,
@@ -27,7 +22,6 @@ import { writeUserProfileCache } from '../lib/userProfileCache';
 import {
   LIFESTYLE_MULTIPLIERS,
   LIFESTYLE_MODES,
-  LIFESTYLE_CATEGORY_BLUEPRINT,
   normalizeLifestyleConfig,
 } from '../constants/lifestyleConfig.js';
 
@@ -37,20 +31,6 @@ const COLORS = {
   pink: '#F472B6',
   amber: '#FBBF24',
 };
-
-const CATEGORY_ICONS = {
-  housing: Home,
-  food: UtensilsCrossed,
-  healthcare: Heart,
-  travel: Plane,
-  family: Users,
-  buffer: Shield,
-};
-
-const CATEGORIES = LIFESTYLE_CATEGORY_BLUEPRINT.map((item) => ({
-  ...item,
-  icon: CATEGORY_ICONS[item.id] || Home,
-}));
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const MIN_CUSTOM_RETIREMENT_AMOUNT = 10000;
@@ -305,56 +285,6 @@ const CustomGoalSummary = ({ monthlyAmount, yearsToRetire }) => {
   );
 };
 
-const CategoryBreakdown = ({ categoryMix, monthlySpendToday, monthlySpendRetirement }) => (
-  <div className="space-y-6">
-    <div className="flex items-center gap-4">
-      <h2 className="font-heading font-extrabold text-2xl md:text-3xl uppercase tracking-widest leading-none">Where Will Your Money Go?</h2>
-      <div className="flex-1 h-[2px] bg-[#1E293B]/10" />
-    </div>
-
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {CATEGORIES.map((cat) => {
-        const Icon = cat.icon;
-        const share = Number(categoryMix[cat.id] || 0) / 100;
-        const today = monthlySpendToday * share;
-        const future = monthlySpendRetirement * share;
-
-        return (
-          <div key={cat.id} className="bg-white border-2 border-[#1E293B] rounded-[16px] p-5 pop-shadow group hover:-translate-y-1 transition-all">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center border-2 border-[#1E293B] shadow-[2px_2px_0_0_#1E293B]" style={{ backgroundColor: `${cat.color}22` }}>
-                <Icon className="w-5 h-5 text-[#1E293B]" strokeWidth={2.5} style={{ color: cat.color }} />
-              </div>
-              <div className="font-bold text-sm text-[#1E293B] uppercase tracking-widest flex items-center gap-1">
-                {cat.name} <InfoTooltip text={DREAM_PLANNER_TIPS[cat.tooltipKey] || DREAM_PLANNER_TIPS.categoryHousing} size={12} />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-center">
-                <div className="text-[9px] font-black text-[#1E293B]/30 uppercase tracking-widest mb-1">Today</div>
-                <div className="font-bold text-sm tracking-tight">{formatIndian(today)}</div>
-              </div>
-              <ArrowRight className="w-4 h-4 text-slate-200" />
-              <div className="text-center">
-                <div className="text-[9px] font-black text-[#1E293B]/30 uppercase tracking-widest mb-1">Retirement</div>
-                <div className="font-bold text-sm tracking-tight" style={{ color: cat.color }}>{formatIndian(future)}</div>
-              </div>
-            </div>
-
-            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden border border-[#1E293B]/10">
-              <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${share * 100}%`, backgroundColor: cat.color }} />
-            </div>
-            <div className="mt-2 text-[9px] font-black text-[#1E293B]/40 uppercase tracking-widest text-right">
-              {(share * 100).toFixed(1)}% of spend
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  </div>
-);
-
 const PageContent = () => {
   const { userData, setUserData } = useUser();
   const [showToast, setShowToast] = useState(false);
@@ -563,16 +493,10 @@ const PageContent = () => {
 
       <InflationRealityCheck yearsToRetire={yearsToRetire} monthlySpendToday={simResults.monthlySpendToday} />
 
-      {planMode === LIFESTYLE_MODES.CUSTOM ? (
+      {planMode === LIFESTYLE_MODES.CUSTOM && (
         <CustomGoalSummary
           monthlyAmount={customRetirementMonthlyAmount}
           yearsToRetire={yearsToRetire}
-        />
-      ) : (
-        <CategoryBreakdown
-          categoryMix={simulationConfig.categories}
-          monthlySpendToday={simResults.monthlySpendToday}
-          monthlySpendRetirement={simResults.monthlySpendAtRetirement}
         />
       )}
 
