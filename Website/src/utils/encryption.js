@@ -1,13 +1,21 @@
-// RetireSahi Encryption Utility
-// AES-256-GCM via Web Crypto API — no external libraries
-// Each user gets a unique key derived from their Firebase UID
-// Even the Firebase admin cannot decrypt this data
+// ============================================
+// Data Encryption Utility — AES-256-GCM
+// ============================================
+// Encrypts sensitive user financial data on the device before sending to Firebase.
+// Uses Web Crypto API (no external libraries) — each user gets a unique key derived from Firebase UID.
+// Even Firebase admins cannot read encrypted data.
+//
+// HOW IT WORKS:
+// 1. User's Firebase UID + app salt → PBKDF2 key derivation
+// 2. Sensitive fields encrypted with AES-256-GCM before Firestore write
+// 3. IV (initialization vector) stored with each encrypted value
+// 4. On read: decrypt using user's derived key
+// 5. Decryption only works if user is logged in with matching UID
 
 const ALGORITHM = 'AES-GCM';
 const SALT = import.meta.env.VITE_ENCRYPTION_SALT || 'retiresahi-v1-2025';
 
-// These fields are encrypted before EVERY Firestore write
-export const ENCRYPTED_FIELDS = [
+// ── FIELDS ALWAYS ENCRYPTED BEFORE FIRESTORE WRITE ──────────\n// Income, savings, contributions, tax details, projections\n// These are never sent to Groq AI in privacy mode\nexport const ENCRYPTED_FIELDS = [
   'monthlyIncome',
   'npsContribution',
   'npsCorpus',
@@ -107,8 +115,12 @@ export const GROQ_FULL_MODE_FIELDS = [
   'blendedReturn',
 ];
 
+// Derive unique encryption key from user's Firebase UID + app salt
+// Uses PBKDF2 (Password-Based Key Derivation Function) with 100,000 iterations
+// More iterations = slower but more secure against brute force
 async function deriveKey(uid) {
   const encoder = new TextEncoder();
+  // Import UID+salt as key material for derivation
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
     encoder.encode(uid + SALT),
@@ -117,25 +129,31 @@ async function deriveKey(uid) {
     ['deriveKey']
   );
 
+  // Derive final encryption key using PBKDF2
   return crypto.subtle.deriveKey(
     {
       name: 'PBKDF2',
       salt: encoder.encode(SALT),
-      iterations: 100000,
+      iterations: 100000, // High iteration count for security
       hash: 'SHA-256',
     },
     keyMaterial,
-    { name: ALGORITHM, length: 256 },
+    { name: ALGORITHM, length: 256 }, // AES-256
     false,
     ['encrypt', 'decrypt']
   );
 }
 
+// Encrypt a single field value
+// Returns { __encrypted: true, iv: base64, data: base64 }
+// __encrypted flag marks this as encrypted for decryption lookup
 export async function encryptField(value, uid) {
   if (value === null || value === undefined) return null;
 
   const key = await deriveKey(uid);
   const encoder = new TextEncoder();
+  // Initialization vector: random 12-byte value unique to each encryption
+  // IV is stored with ciphertext (doesn't need to be secret, only unique per encryption)
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const encrypted = await crypto.subtle.encrypt(
     { name: ALGORITHM, iv },
@@ -145,8 +163,8 @@ export async function encryptField(value, uid) {
 
   return {
     __encrypted: true,
-    iv: btoa(String.fromCharCode(...iv)),
-    data: btoa(String.fromCharCode(...new Uint8Array(encrypted))),
+    iv: btoa(String.fromCharCode(...iv)), // Base64 encode IV for JSON storage
+    data: btoa(String.fromCharCode(...new Uint8Array(encrypted))), // Base64 encode ciphertext
   };
 }
 

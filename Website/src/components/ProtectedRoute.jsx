@@ -1,3 +1,12 @@
+// ============================================
+// Protected Route Guard
+// ============================================
+// Wraps authenticated pages to block access if user is not logged in.
+// If user is not authenticated, redirects to landing page.
+// Shows loading spinner while auth state is being determined.
+//
+// Usage: <ProtectedRoute><Dashboard /></ProtectedRoute>
+
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthSession } from './authSessionContext';
@@ -7,11 +16,13 @@ export default function ProtectedRoute({ children }) {
   const { currentUser, authLoading } = useAuthSession();
 
   useEffect(() => {
+    // Once auth check is done and user is not authenticated, redirect to landing
     if (!authLoading && !currentUser) {
       navigate('/');
     }
   }, [authLoading, currentUser, navigate]);
 
+  // Show loading spinner while auth state is being determined
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#FFFDF5]">
@@ -23,9 +34,11 @@ export default function ProtectedRoute({ children }) {
     );
   }
 
+  // Don't render anything while redirecting
   if (!currentUser) {
     return null;
   }
 
+  // Auth passed — render the protected page
   return children;
 }

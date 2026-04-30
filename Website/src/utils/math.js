@@ -1,8 +1,19 @@
 // ============================================
 // RetireSahi — Math Engine v2.0
-// All formulas verified against PFRDA rules
-// and FY 2026-27 tax compliance
 // ============================================
+// Core retirement calculations based on PFRDA rules.
+// All formulas verified against FY 2026-27 tax compliance.
+//
+// WHAT THIS ENGINE DOES:
+// 1. Computes retirement corpus needed based on lifestyle
+// 2. Projects NPS growth with user's contributions
+// 3. Calculates retirement readiness score (0-100)
+// 4. Determines annuity vs lump-sum split
+// 5. Optimizes tax liability across tax regimes
+// 6. Forecasts cash flow shortfalls
+// 7. Generates investment milestones and targets
+//
+// INPUTS: User profile (age, income, contributions, goals, lifestyle)\n// OUTPUTS: Score, gap, projections, tax suggestions, investment plan
 
 import {
   LIFESTYLE_MULTIPLIERS,
@@ -19,23 +30,23 @@ import {
 } from '../constants/investmentSchemes.js'
 import { computeTaxSavings as computeTaxSavingsCore } from './taxShieldMath.js'
 
-// ── SCHEME RETURNS (10-year averages) ───────
-export const SCHEME_E_RETURN = 0.1269   // Equity
+// ── SCHEME RETURNS (10-year historical averages) ─────────────────────
+export const SCHEME_E_RETURN = 0.1269   // Equity (Tier-I NPS Equity)
 export const SCHEME_C_RETURN = 0.0887   // Corporate Bonds
-export const SCHEME_G_RETURN = 0.0874   // Govt Securities
+export const SCHEME_G_RETURN = 0.0874   // Government Securities
 
-// ── FIXED ASSUMPTIONS ───────────────────────
-export const INFLATION_RATE  = 0.06     // 6% p.a.
-export const SWR             = 0.035    // 3.5% Safe Withdrawal Rate (India-adjusted)
-export const ANNUITY_RATE    = 0.06     // 6% p.a. (conservative annuity estimate)
-export const ANNUITY_SPLIT   = 0.40     // 40% must be annuitized (PFRDA mandate)
-export const ANNUITY_PCT    = 0.40     // Alias for compatibility
-export const LUMP_SUM_SPLIT  = 0.60     // 60% available as lump sum
-export const LUMP_SUM_PCT  = 0.60     // Alias for compatibility
-export const MIN_MODEL_MONTHLY_INCOME = 10000 // Keep readiness realistic for legacy low-income edge cases
+// ── FIXED FINANCIAL ASSUMPTIONS ────────────────────────────────────
+export const INFLATION_RATE  = 0.06     // 6% p.a. — assumed cost inflation at retirement
+export const SWR             = 0.035    // 3.5% Safe Withdrawal Rate (conservative for India)
+export const ANNUITY_RATE    = 0.06     // 6% p.a. annuity payment rate
+export const ANNUITY_SPLIT   = 0.40     // 40% corpus MUST be annuitized per PFRDA rules
+export const ANNUITY_PCT    = 0.40     // Alias for backward compatibility
+export const LUMP_SUM_SPLIT  = 0.60     // 60% available as tax-free lump sum
+export const LUMP_SUM_PCT  = 0.60     // Alias for backward compatibility
+export const MIN_MODEL_MONTHLY_INCOME = 10000 // Floor to keep score realistic
 const RETIREMENT_GOAL_FALLBACK_SWR = 0.04
 
-// ── COLORS ─────────────────────────────────
+// ── UI COLORS ─────────────────────────────────────────────────────
 export const COLORS = {
   bg: '#FFFDF5',
   fg: '#1E293B',
@@ -51,16 +62,17 @@ export const COLORS = {
 
 export { LIFESTYLE_MULTIPLIERS }
 
-// ── PFRDA EQUITY CAP BY AGE ─────────────────
+// ── PFRDA EQUITY CAP BY AGE ────────────────────────────────────────
+// Prevents excessive risk for those close to retirement
 export function getMaxEquityPct(age) {
   if (age < 50) return 75
   if (age >= 60) return 50
   return 75 - (age - 50) * 2.5
 }
 
-// ── BLENDED RETURN ──────────────────────────
-// Based on user's equity allocation
-// Remaining split equally between C and G
+// ── BLENDED RETURN CALCULATION ─────────────────────────────────────
+// Weight returns by user's equity allocation
+// Remaining amount split equally between corporate bonds and govt securities
 export function computeBlendedReturn(equityPct, age) {
   const cappedEquity = Math.min(equityPct, getMaxEquityPct(age)) / 100
   const remaining = 1 - cappedEquity
@@ -71,7 +83,8 @@ export function computeBlendedReturn(equityPct, age) {
   )
 }
 
-// ── TAX REGIME SLABS (FY 2026-27) ───────────
+// ── TAX REGIME SLABS (FY 2026-27) ──────────────────────────────────
+// Used to calculate income tax liability
 export const NEW_REGIME_SLABS = [
   { limit: 400000,  rate: 0.00 },
   { limit: 800000,  rate: 0.05 },
@@ -99,7 +112,9 @@ export const HEALTH_EDUCATION_CESS = 0.04
 export const MARGINAL_RELIEF_START = 1200000
 export const MARGINAL_RELIEF_END = 1275000
 
-// ── INDIAN NUMBER FORMATTER ─────────────────
+// ── INDIAN NUMBER FORMATTER ────────────────────────────────────────
+// Converts large numbers to Crore/Lakh format for readability
+// ₹1234567 → ₹12.3 L (lakh)\n// ₹123456789 → ₹12.3 Cr (crore)
 export function formatIndian(num) {
   if (!num || isNaN(num)) return '₹0'
   if (num >= 10000000) return `₹${(num / 10000000).toFixed(1)} Cr`
@@ -108,24 +123,27 @@ export function formatIndian(num) {
   return `₹${Math.round(num)}`
 }
 
-// ── SCORE BAND ──────────────────────────────
+// ── RETIREMENT SCORE BANDS ─────────────────────────────────────────
+// Maps score (0-100) to readiness label and color
 export function getScoreBand(score) {
-  if (score <= 30) return { label: 'Critical',  color: '#EF4444' }
-  if (score <= 50) return { label: 'At Risk',   color: '#F97316' }
-  if (score <= 70) return { label: 'On Track',  color: '#3B82F6' }
-  if (score <= 85) return { label: 'Good',      color: '#8B5CF6' }
-  return              { label: 'Excellent',  color: '#34D399' }
+  if (score <= 30) return { label: 'Critical',  color: '#EF4444' }     // Red
+  if (score <= 50) return { label: 'At Risk',   color: '#F97316' }     // Orange
+  if (score <= 70) return { label: 'On Track',  color: '#3B82F6' }     // Blue
+  if (score <= 85) return { label: 'Good',      color: '#8B5CF6' }     // Purple
+  return              { label: 'Excellent',  color: '#34D399' }     // Green
 }
 
-// ── SCORE INFO (alias for compatibility) ────
+// ── SCORE INFO (backward compatibility alias) ──────────────────────
 export const getScoreInfo = getScoreBand
 
-// ── STEP-UP FV ──────────────────────────────
-// FV of contributions growing 10% per year (step-up)
+// ── STEP-UP FUTURE VALUE CALCULATION ───────────────────────────────
+// Projects future value of contributions that grow 10% per year (salary increases)
+// Used to forecast corpus if user increases monthly investment with raises
 export function computeStepUpFV(monthlyPmt, annualReturn, years) {
   const r = annualReturn / 12
   let fv = 0
   for (let k = 0; k < years; k++) {
+    // Each year's contribution is 10% higher than previous year
     const pmt = monthlyPmt * Math.pow(1.10, k)
     const monthsRemaining = (years - k) * 12
     fv += pmt * (Math.pow(1 + r, monthsRemaining) - 1) / r
@@ -133,8 +151,9 @@ export function computeStepUpFV(monthlyPmt, annualReturn, years) {
   return fv
 }
 
-// ── MILESTONE AGE ───────────────────────────
-// Binary search for the age at which corpus hits a milestone
+// ── MILESTONE AGE LOOKUP ───────────────────────────────────────────
+// Binary search to find the age when projected corpus hits a target amount
+// Used to show "You'll hit 1 Crore at age 58" type insights
 export function getMilestoneAge(milestone, currentAge, corpus, monthlyPmt, annualReturn) {
   const r = annualReturn / 12
   if (corpus >= milestone) return { age: currentAge, achieved: true }

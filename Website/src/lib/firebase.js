@@ -1,3 +1,13 @@
+// ============================================
+// Firebase Configuration
+// ============================================
+// Initializes Firebase Auth and Firestore for:
+// - User authentication (email/Google sign-in)
+// - User data persistence (encrypted profile storage)
+// - Real-time data sync
+//
+// Config values come from .env.local (kept secret, never committed)
+
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { initializeFirestore } from "firebase/firestore";

@@ -1,6 +1,28 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 
+// ============================================
+// Guided Tour Overlay (Spotlight)
+// ============================================
+// Full-screen spotlight tour that guides new users through the Dashboard.
+// Highlights each element with a spotlight effect and shows explanatory cards.
+//
+// HOW IT WORKS:
+// 1. Gets list of tour steps (elements to highlight + descriptions)
+// 2. Finds element by ID and calculates its position
+// 3. Scrolls page to keep element centered
+// 4. Draws spotlight mask around element
+// 5. Shows info card next to spotlight
+// 6. Advances to next step on "Next" or "Skip"
+//
+// TECHNICAL:
+// - Uses document-relative positioning (not viewport-relative)
+// - Doesn't recalculate on scroll (efficient performance)
+// - Mobile-responsive card positioning
+//
+// USAGE:
+// <TourOverlay steps={TOUR_STEPS} onComplete={handleDone} onSkip={handleSkip} />
+
 /**
  * TourOverlay — full-screen spotlight guided tour.
  * Uses an absolute positioning engine so elements scroll naturally with the page

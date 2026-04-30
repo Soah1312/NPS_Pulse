@@ -1,3 +1,23 @@
+// ============================================
+// AI Privacy Choice Modal
+// ============================================
+// Allows users to decide how much financial data to share with Groq AI.
+//
+// TWO OPTIONS:
+// 1. PRIVACY MODE (Recommended)
+//    - AI sees: Score, projections, lifestyle (NOT income/corpus)
+//    - Data stays in India, not sent to Groq
+//    - Slightly less specific advice
+//
+// 2. FULL MODE
+//    - AI sees: Everything (income, corpus, all numbers)
+//    - Data sent to Groq (USA) for detailed analysis
+//    - Most specific, personalized advice
+//    - Groq does NOT store or use for training
+//
+// USAGE: Show this modal on first AI chat, store choice in user profile
+// The choice determines which fields get sent in subsequent AI requests (see encryption.js)
+
 import React, { useState } from 'react';
 import { Lock, Zap, Info, Sparkles, Check, X, ArrowDown } from 'lucide-react';
 

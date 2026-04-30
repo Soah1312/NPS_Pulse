@@ -31,6 +31,12 @@ const ASSISTANT_PLACEHOLDER_STAGES = [
 
 const formatModelTag = (model) => `[${model || 'unknown-model'}]`;
 
+/**
+ * Cleans the assistant's response by removing any <think> blocks.
+ * Used to hide internal reasoning processes from the user's view.
+ * @param {string} content - The raw content from the AI
+ * @returns {string} Sanitized string without think blocks
+ */
 function sanitizeAssistantContent(content) {
   if (typeof content !== 'string') return '';
 
@@ -48,6 +54,12 @@ function sanitizeAssistantContent(content) {
   return sanitized.trimStart();
 }
 
+/**
+ * Detects if the user is asking about the creator of the platform.
+ * Used to trigger a hardcoded Easter egg response.
+ * @param {string} text - The user's input text
+ * @returns {boolean} True if asking about creator identity
+ */
 function isCreatorIdentityQuestion(text) {
   if (typeof text !== 'string') return false;
   const normalized = text.trim();
@@ -93,6 +105,19 @@ const markdownComponents = {
   hr: (props) => <hr className="my-4 border-slate-200" {...props} />,
 };
 
+/**
+ * Handles the streaming API connection to Groq or the serverless backend.
+ * Responsible for decoding SSE (Server-Sent Events) chunks and triggering callbacks.
+ * 
+ * @param {Object} options - Configuration for the stream
+ * @param {Array} options.messages - The conversation history
+ * @param {Function} options.onChunk - Callback fired when a new text chunk arrives
+ * @param {Function} options.onDone - Callback fired when the stream finishes
+ * @param {Function} options.onError - Callback fired on errors or rate limits
+ * @param {Function} options.onMeta - Callback fired when model metadata is received
+ * @param {boolean} options.forceFallback - Whether to forcefully use the fallback model
+ * @param {AbortSignal} options.signal - Signal to abort the fetch request
+ */
 async function streamGroq({ messages, onChunk, onDone, onError, onMeta, forceFallback = false, signal }) {
   let response;
 
@@ -226,6 +251,10 @@ const QuickPrompt = ({ text, onClick }) => (
   </button>
 );
 
+/**
+ * A reusable component to render an individual chat message bubble.
+ * Differentiates styling based on whether the message is from the user or the AI.
+ */
 const MessageBubble = ({ role, content, timestamp, model, fallbackUsed }) => {
   const isAI = role === 'assistant' || role === 'system';
   const renderedContent = isAI ? sanitizeAssistantContent(content ?? '') : (content ?? '');
@@ -308,6 +337,10 @@ const StreamingBubble = ({ content, streamMeta }) => (
   </div>
 );
 
+/**
+ * The main Chat Interface component.
+ * Manages chat history, input state, streaming state, auto-scrolling, and user context.
+ */
 const ChatInterface = () => {
   const { userData, setUserData } = useUser();
   const [messages, setMessages] = useState(() => {
@@ -455,6 +488,11 @@ const ChatInterface = () => {
       "How does a job change affect my NPS?",
     ];
 
+  /**
+   * Triggers the AI request sequence when the user sends a message.
+   * Compiles the system prompt, handles special cases (like easter eggs), and initiates the stream.
+   * @param {string} [content] - Optional predefined content (used for quick prompts)
+   */
   const handleSend = useCallback(async (content) => {
     if (!displayData) return;
     const rawText = typeof content === 'string' ? content : inputValue;

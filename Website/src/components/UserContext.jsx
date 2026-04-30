@@ -1,9 +1,21 @@
+// ============================================
+// User Profile Context
+// ============================================
+// Global state container for user's financial profile.
+// All retirement calculations depend on these values.
+// Used across Dashboard, TaxShield, DreamPlanner, AICopilot pages.
+//
+// SENSITIVE DATA: firstName, income, corpus, savings amounts are encrypted before Firestore write.
+// NON-SENSITIVE: score, lifestyle, age, tax regime are sent to Groq AI for advice.
+
 import { createContext, useContext } from 'react';
 import { createDefaultLifestyleConfig, normalizeLifestyleConfig } from '../constants/lifestyleConfig.js';
 import { RETIREMENT_MODES, inferRetirementMode } from '../constants/investmentSchemes.js';
 
 export const UserContext = createContext();
 
+// Default empty state loaded before user data is fetched from Firestore
+// Each field has a sensible default (strings are empty, numbers are 0 or preset values)
 export const INITIAL_USER_DATA = {
   firstName: '',
   age: '',

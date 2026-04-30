@@ -1,3 +1,20 @@
+// ============================================
+// Strategy Cards Generator
+// ============================================
+// Generates personalized tax and financial strategy cards for the Dashboard.
+// Analyzes user's profile and suggests actionable improvements.
+//
+// STRATEGIES GENERATED:
+// 1. Tax Regime Optimization - Old vs New regime analysis
+// 2. 87A Rebate Opportunities - Rebate eligibility & optimization
+// 3. Employer NPS Optimization - Maximize employer contribution
+// 4. 80C Gap Closure - Reach maximum deduction ceiling
+// 5. Additional Savings Opportunity - If projected gap exists
+//
+// USAGE:
+// Cards are displayed on Dashboard page, user can click to simulate changes
+// Simulations are powered by calculateRetirement() and computeTaxSavings()
+
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Droplets, HeartPulse, Mail, ShieldCheck, TrendingUp } from 'lucide-react';

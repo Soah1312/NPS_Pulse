@@ -1,3 +1,18 @@
+// ============================================
+// Info Tooltip Component
+// ============================================
+// A small ℹ️ icon button that shows a help tooltip on hover or focus.
+// Used throughout the app to explain complex concepts without cluttering the UI.
+//
+// KEY FEATURES:
+// - Smart positioning: Opens above or below depending on available space
+// - Mobile friendly: Tooltip width scales on small screens
+// - Accessible: Keyboard focus support, ARIA labels, prefers-reduced-motion
+// - Animated: Smooth fade-in with accessible reduced-motion support
+//
+// USAGE:
+// <InfoTooltip text="Your NPS contribution toward retirement savings" size={16} />
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Info } from 'lucide-react';
 
@@ -5,9 +20,9 @@ import { Info } from 'lucide-react';
  * InfoTooltip — a small ℹ️ button that shows a help bubble on hover/focus.
  *
  * Props:
- *   text       — string to display
+ *   text       — string to display in the tooltip
  *   size       — icon pixel size (default 14)
- *   className  — extra classes for the wrapper span
+ *   className  — extra CSS classes for the wrapper span
  */
 export default function InfoTooltip({ text, size = 14, className = '' }) {
   const [visible, setVisible] = useState(false);
@@ -16,6 +31,7 @@ export default function InfoTooltip({ text, size = 14, className = '' }) {
   const tipRef = useRef(null);
 
   // Recalculate best position when visible changes
+  // Avoids tooltip going off-screen on small devices
   const recalc = useCallback(() => {
     if (!btnRef.current) return;
     const rect = btnRef.current.getBoundingClientRect();
@@ -44,8 +60,8 @@ export default function InfoTooltip({ text, size = 14, className = '' }) {
         aria-label="More information"
         onMouseEnter={show}
         onMouseLeave={hide}
-        onFocus={show}
-        onBlur={hide}
+        onFocus={show}     // Keyboard users can tab to this button
+        onBlur={hide}      // Hide when focus leaves
         className="p-0.5 rounded-full text-[#1E293B]/30 hover:text-[#8B5CF6] focus:text-[#8B5CF6] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#8B5CF6]/40 transition-colors cursor-help"
       >
         <Info style={{ width: size, height: size }} strokeWidth={2.5} />
@@ -68,7 +84,7 @@ export default function InfoTooltip({ text, size = 14, className = '' }) {
           `}
         >
           {text}
-          {/* Arrow nub */}
+          {/* Arrow nub pointing to the button */}
           <div
             className={`
               absolute w-3 h-3 bg-[#1E293B] border-[#8B5CF6] rotate-45
