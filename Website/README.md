@@ -200,22 +200,22 @@ Behavior
 ## Screenshots
 
 ### Landing Page
-![Landing Page](Website/assets/screenshots/LandingPage.png)
+![Landing Page](assets/screenshots/LandingPage.png)
 
 ### Onboarding Flow
-![Onboarding](Website/assets/screenshots/Onboarding.png)
+![Onboarding](assets/screenshots/Onboarding.png)
 
 ### Dashboard - Financial Overview
-![Dashboard](Website/assets/screenshots/Dashboard.png)
+![Dashboard](assets/screenshots/Dashboard.png)
 
 ### AI Co-Pilot - Real-time Streaming Chat
-![AI Copilot](Website/assets/screenshots/AiCopilot.png)
+![AI Copilot](assets/screenshots/AiCopilot.png)
 
 ### Dream Planner - Goal Setting
-![Dream Planner](Website/assets/screenshots/DreamPlanner.png)
+![Dream Planner](assets/screenshots/DreamPlanner.png)
 
 ### Tax Shield - Tax Planning Module
-![Tax Shield](Website/assets/screenshots/TaxShield.png)
+![Tax Shield](assets/screenshots/TaxShield.png)
 
 ## Future Improvements
 - Move rate limiting to Redis (distributed token/bucket) for production reliability
@@ -230,3 +230,6 @@ Behavior
 - Serverless proxy & auth: `api/groq.js`
 - Firebase initialization: `src/lib/firebase.js`
 - Chat persistence: `localStorage` keys `retiresahi_chat_history_<uid>`
+
+## License
+This project is licensed under the MIT License. See the `LICENSE` file at the repository root for details.
