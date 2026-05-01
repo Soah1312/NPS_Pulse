@@ -195,10 +195,7 @@ Behavior
 
 ## Demo
 
-<video width="100%" controls>
-  <source src="assets/demo/RetireSahi.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+<video src="https://raw.githubusercontent.com/Soah1312/RetireSahi/main/Website/assets/demo/RetireSahi.mp4" controls width="100%"></video>
 
 ## Screenshots
 
