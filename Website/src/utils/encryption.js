@@ -15,7 +15,10 @@
 const ALGORITHM = 'AES-GCM';
 const SALT = import.meta.env.VITE_ENCRYPTION_SALT || 'retiresahi-v1-2025';
 
-// ── FIELDS ALWAYS ENCRYPTED BEFORE FIRESTORE WRITE ──────────\n// Income, savings, contributions, tax details, projections\n// These are never sent to Groq AI in privacy mode\nexport const ENCRYPTED_FIELDS = [
+/* ── FIELDS ALWAYS ENCRYPTED BEFORE FIRESTORE WRITE ──────────
+  Income, savings, contributions, tax details, projections
+  These are never sent to Groq AI in privacy mode */
+export const ENCRYPTED_FIELDS = [
   'monthlyIncome',
   'npsContribution',
   'npsCorpus',

@@ -11,8 +11,9 @@ import { getAuth } from 'firebase-admin/auth';
 // ── Configuration Variables ────────────────────────────────────────────────────────
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 // Primary and fallback models for the chat functionality
-const PRIMARY_MODEL = getEnv('GROQ_PRIMARY_MODEL') || 'qwen/qwen3-32b';
-const FALLBACK_MODEL = getEnv('GROQ_FALLBACK_MODEL') || 'openai/gpt-oss-120b';
+// Keep these aligned with the frontend defaults so local and deployed behavior match.
+const PRIMARY_MODEL = getEnv('GROQ_PRIMARY_MODEL') || 'qwen-2.5-32b';
+const FALLBACK_MODEL = getEnv('GROQ_FALLBACK_MODEL') || 'llama-3.3-70b-versatile';
 
 // ── Rate Limiting & Message Constraints ────────────────────────────────────────────
 const MAX_MESSAGES = 12; // Maximum number of past messages to send for context
@@ -358,7 +359,7 @@ async function verifyUserFromRequest(req, body = {}) {
     }
 
     const lookupResponse = await fetch(
-      \`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=\${encodeURIComponent(webApiKey)}\`,
+      `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(webApiKey)}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -421,8 +422,9 @@ export default async function handler(req, res) {
     // Prepare inputs
     const messages = normalizeMessages(body.messages);
     const stream = Boolean(body.stream);
-    // Allow frontend to explicitly request the fallback model during local debugging
-    const forceFallback = Boolean(body.forceFallback) && (isLocalhost || isLocalDebug);
+    // Allow the frontend to explicitly request the fallback model in any environment.
+    // The API still prefers the primary model first unless /fallback is used.
+    const forceFallback = Boolean(body.forceFallback);
 
     const groqApiKey = getEnv('GROQ_API_KEY');
     if (!groqApiKey) {
@@ -473,7 +475,7 @@ export default async function handler(req, res) {
       const retryAfter = Math.ceil((error.retryAfterMs || RATE_LIMIT_WINDOW_MS) / 1000);
       res.setHeader('Retry-After', retryAfter);
       return res.status(429).json({
-        error: \`Slow down! You've hit the limit of \${RATE_LIMIT_MAX} messages per minute. Try again in \${retryAfter}s.\`,
+        error: `Slow down! You've hit the limit of ${RATE_LIMIT_MAX} messages per minute. Try again in ${retryAfter}s.`,
         code: 'RATE_LIMITED',
         retryAfterSeconds: retryAfter,
       });

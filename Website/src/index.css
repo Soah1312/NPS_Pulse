@@ -1,134 +1,130 @@
-// ============================================
-// Global CSS Styles & Animations
-// ============================================
-// Base styles for the entire RetireSahi application.
-// Built with Tailwind CSS utility classes.
-//
-// INCLUDES:
-// - Google Fonts imports (Outfit + Plus Jakarta Sans)
-// - Custom animations (wiggle, float, gradient-shift, pulse-glow)
-// - Responsive design helpers for mobile
-// - Accessibility features (prefers-reduced-motion)
-// - Safe area support for notched devices (iPhone X, etc)
+/* ============================================
+  Global CSS Styles & Animations
+  ============================================
+  Base styles for the entire RetireSahi application.
+  Built with Tailwind CSS utility classes.
 
+  INCLUDES:
+  - Google Fonts imports (Outfit + Plus Jakarta Sans)
+  - Custom animations (wiggle, float, gradient-shift, pulse-glow)
+  - Responsive design helpers for mobile
+  - Accessibility features (prefers-reduced-motion)
+  - Safe area support for notched devices (iPhone X, etc)
+*/
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;800&family=Plus+Jakarta+Sans:wght@400;500;700;800&display=swap');
 @import "tailwindcss";
 
-/* ─── CUSTOM THEME VARIABLES ─────────────────────────────── */
-@theme {
-  // Slow spin animation for loading indicators (20 second rotation)
-  --animate-spin-slow: spin 20s linear infinite;
-}
-
-/* ─── ROOT VARIABLES ─────────────────────────────── */
+/* ─── ROOT VARIABLES & THEME ─────────────────────────────── */
 :root {
-  // Minimum touch target size for mobile (44px per Apple HIG guidelines)
+  /* Slow spin animation for loading indicators (20 second rotation) */
+  --animate-spin-slow: spin 20s linear infinite;
+  /* Minimum touch target size for mobile (44px per Apple HIG guidelines) */
   --tap-target-min: 44px;
 }
 
 /* ─── GLOBAL STYLES ─────────────────────────────── */
 body {
   margin: 0;
-  // Use Plus Jakarta Sans for body text (modern, clean sans-serif)
+  /* Use Plus Jakarta Sans for body text (modern, clean sans-serif) */
   font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
-  // Smooth font rendering across browsers
+  /* Smooth font rendering across browsers */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-// Use Outfit font for all headings (bold, distinctive)
+/* Use Outfit font for all headings (bold, distinctive) */
 h1, h2, h3, h4, h5, h6, .font-heading {
   font-family: 'Outfit', system-ui, -apple-system, sans-serif;
 }
 
-// Box sizing: include padding/border in width calculations
+/* Box sizing: include padding/border in width calculations */
 * {
   box-sizing: border-box;
 }
 
 /* ─── CUSTOM ANIMATIONS ─────────────────────────────── */
 
-// Wiggle effect for attention-grabbing elements
+/* Wiggle effect for attention-grabbing elements */
 @keyframes wiggle {
   0%, 100% { transform: rotate(-3deg); }
   50% { transform: rotate(3deg); }
 }
 
-// Floating animation for background decorative elements
-// Combines vertical movement + rotation for dynamic effect
+/* Floating animation for background decorative elements
+   Combines vertical movement + rotation for dynamic effect */
 @keyframes float {
   0%, 100% { transform: translateY(0) rotate(0); }
   50% { transform: translateY(-20px) rotate(5deg); }
 }
 
-// Gradient shift for animated backgrounds
-// Cycles through different background positions for flowing effect
+/* Gradient shift for animated backgrounds
+   Cycles through different background positions for flowing effect */
 @keyframes gradient-shift {
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
 }
 
-// Pulsing glow effect for emphasis elements
-// Animates the glow/shadow to create breathing effect
+/* Pulsing glow effect for emphasis elements
+   Animates the glow/shadow to create breathing effect */
 @keyframes pulse-glow {
   0%, 100% { box-shadow: 0 0 10px var(--glow-color, rgba(255,255,255,0.5)); }
   50% { box-shadow: 0 0 30px var(--glow-color, rgba(255,255,255,1)); }
 }
 
 /* ─── ACCESSIBILITY: Respect user motion preferences ─────────────────────────────── */
-// Users who prefer reduced motion (accessibility setting on Mac/iOS/Windows)
-// should see no animations — improves experience for those with vestibular disorders
+/* Users who prefer reduced motion (accessibility setting on Mac/iOS/Windows)
+   should see no animations — improves experience for those with vestibular disorders */
 @media (prefers-reduced-motion: reduce) {
   * {
-    animation-duration: 0.01ms !important;     // Disable animations
-    animation-iteration-count: 1 !important;   // Play once only
-    transition-duration: 0.01ms !important;    // Disable transitions
-    scroll-behavior: auto !important;          // Disable smooth scroll
+    animation-duration: 0.01ms !important;     /* Disable animations */
+    animation-iteration-count: 1 !important;   /* Play once only */
+    transition-duration: 0.01ms !important;    /* Disable transitions */
+    scroll-behavior: auto !important;          /* Disable smooth scroll */
   }
 }
 
 /* ─── SAFE AREA SUPPORT for Notched Devices ─────────────────────────────── */
-// iPhone X, iPhone 12 Pro Max, etc have camera notches and home indicators
-// CSS env(safe-area-inset-*) provides safe padding around these areas
+/* iPhone X, iPhone 12 Pro Max, etc have camera notches and home indicators
+   CSS env(safe-area-inset-*) provides safe padding around these areas */
 @supports (padding: max(0px)) {
-  // Add padding to bottom (home indicator on iPhone)
+  /* Add padding to bottom (home indicator on iPhone) */
   .pb-safe {
     padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
   }
 
-  // Add padding to top (notch on iPhone X)
+  /* Add padding to top (notch on iPhone X) */
   .pt-safe {
     padding-top: max(0.5rem, env(safe-area-inset-top));
   }
 }
 
 /* ─── MOBILE TOUCH TARGETS ─────────────────────────────── */
-// On touch devices, buttons/links need to be at least 44x44 pixels for easy tapping
+/* On touch devices, buttons/links need to be at least 44x44 pixels for easy tapping */
 @media (max-width: 1023px) {
-  // Apply minimum touch target to interactive elements
+  /* Apply minimum touch target to interactive elements */
   .touch-target {
     min-height: var(--tap-target-min);
     min-width: var(--tap-target-min);
   }
 
-  // Prevent bounce scrolling on iOS when reaching end of scrollable area
+  /* Prevent bounce scrolling on iOS when reaching end of scrollable area */
   .mobile-scroll-lock {
     overscroll-behavior: contain;
   }
 }
 
 /* ─── MOBILE TEXT SIZE FIX ─────────────────────────────── */
-// On very small screens (<640px), some text sizes were illegible
-// Force minimum sizes for readability on phones
+/* On very small screens (<640px), some text sizes were illegible
+   Force minimum sizes for readability on phones */
 @media (max-width: 640px) {
-  // Tiny text (9px) → boost to readable size
+  /* Tiny text (9px) → boost to readable size */
   .text-\[9px\] {
     font-size: 0.6875rem !important;
     line-height: 1.25 !important;
   }
 
-  // Extra small text (10px) → boost to readable size
+  /* Extra small text (10px) → boost to readable size */
   .text-\[10px\] {
     font-size: 0.75rem !important;
     line-height: 1.25 !important;

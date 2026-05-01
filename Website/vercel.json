@@ -1,36 +1,16 @@
-// ============================================
-// Vercel Deployment Configuration
-// ============================================
-// Configures how RetireSahi is deployed and served on Vercel platform.
-//
-// WHAT THIS FILE DOES:
-// - headers: Sets HTTP response headers (like cache control)
-// - rewrites: Routes requests internally without changing URL
-//
-// KEY SETTINGS:
-// - API caching: Disabled (no-store) so AI responses are always fresh
-// - SPA routing: Single-page app rewrites all unknown routes to index.html
-//   This allows React Router to handle navigation client-side
-// - Static routes: Allows robots.txt and sitemap.xml to be served as-is
-
 {
   "headers": [
     {
-      // Applies to all API routes (/api/*)
       "source": "/api/(.*)",
       "headers": [
         {
           "key": "Cache-Control",
-          // Don't cache API responses so fresh data is always fetched
-          // This is critical for user-specific AI responses & real-time scores
           "value": "no-store"
         }
       ]
     }
   ],
-  
   "rewrites": [
-    // Pre-rendered static pages (can be served with longer cache)
     {
       "source": "/learn",
       "destination": "/learn/index.html"
@@ -39,11 +19,6 @@
       "source": "/methodology",
       "destination": "/methodology/index.html"
     },
-    
-    // Catch-all for Single Page App (SPA)
-    // Any route not matching static files gets routed to React app
-    // This lets React Router handle /dashboard, /settings, /onboarding, etc.
-    // Regex excludes: /api/* (backend routes), robots.txt, sitemap.xml
     {
       "source": "/((?!api/|robots\\.txt$|sitemap\\.xml$).*)",
       "destination": "/index.html"
