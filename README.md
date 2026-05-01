@@ -195,9 +195,10 @@ Behavior
 
 ## Demo
 
-**[▶️ Watch Demo Video on Google Drive](https://drive.google.com/file/d/1CXtT4w6IaGU6sODMNFpYUziP1E_BbKhn/view?usp=sharing)**
-
-*Click the link above to watch a full walkthrough of RetireSahi features including onboarding, AI chat, financial dashboard, and tax planning tools.*
+<video width="100%" controls>
+  <source src="Website/assets/demo/RetireSahi.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
 
 ## Screenshots
 
