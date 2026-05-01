@@ -394,7 +394,7 @@ export default function LandingPage() {
         )}
       </nav>
 
-      <main>
+      <main id="main-content" tabIndex={-1}>
         {/* Hero */}
         <section className="relative pt-12 sm:pt-20 pb-20 sm:pb-32 px-4 sm:px-6 overflow-hidden min-h-[85vh] flex items-center">
           <MemphisDotGrid />

@@ -43,6 +43,9 @@ function App() {
   return (
     // AuthSessionProvider watches login/logout and updates global user state
     <AuthSessionProvider>
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
       <BrowserRouter>
         {/* Update meta tags (title, description, og:image) per page */}
         <SeoHead />

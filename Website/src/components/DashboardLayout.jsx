@@ -176,10 +176,15 @@ export default function DashboardLayout({ children, title, userData: passedUserD
 
         {/* Sidebar (Desktop) */}
         <aside className={`fixed left-0 top-0 h-full bg-[#1E293B] z-40 hidden lg:flex flex-col overflow-hidden transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'w-24 p-4 items-center' : 'w-60 p-6'}`}>
-          <div className="flex items-center gap-3 mb-12 cursor-pointer" onClick={() => navigate('/dashboard')}>
+          <button
+            type="button"
+            onClick={() => navigate('/dashboard')}
+            className="flex items-center gap-3 mb-12 cursor-pointer text-left"
+            aria-label="Go to dashboard home"
+          >
             <div className="w-10 h-10 bg-[#8B5CF6] rounded-full border-2 border-white flex items-center justify-center font-heading font-extrabold text-white text-xl">R</div>
             {!isSidebarCollapsed && <span className="font-heading font-extrabold text-white text-xl uppercase tracking-widest whitespace-nowrap animate-fade-in">RetireSahi</span>}
-          </div>
+          </button>
 
           <nav className="flex-1 space-y-4 w-full">
             {navItems.map(item => (
@@ -188,6 +193,7 @@ export default function DashboardLayout({ children, title, userData: passedUserD
                 title={isSidebarCollapsed ? item.label : undefined}
                 onClick={() => navigate(item.path)}
                 className={`w-full flex items-center py-3 font-bold transition-all ${location.pathname === item.path ? 'sidebar-item-active' : 'text-white/70 hover:bg-white/10 rounded-full'} ${isSidebarCollapsed ? 'justify-center px-0' : 'gap-4 px-4'}`}
+                aria-label={item.label}
               >
                 <item.icon className="w-5 h-5 shrink-0" strokeWidth={2.5} />
                 {!isSidebarCollapsed && <span className="whitespace-nowrap animate-fade-in">{item.label}</span>}
@@ -207,10 +213,10 @@ export default function DashboardLayout({ children, title, userData: passedUserD
               {!isSidebarCollapsed && (
                 <div className="flex flex-col min-w-0 pr-2">
                   <span className="text-white font-bold text-sm tracking-wide truncate">{userData?.firstName || 'User'}</span>
-                  <button onClick={() => navigate('/settings')} className="text-[10px] text-white/50 uppercase tracking-widest font-black hover:text-[#F472B6] text-left">Settings</button>
+                  <button onClick={() => navigate('/settings')} className="text-[10px] text-white/50 uppercase tracking-widest font-black hover:text-[#F472B6] text-left" aria-label="Open settings">Settings</button>
                 </div>
               )}
-              <button onClick={handleLogout} title={isSidebarCollapsed ? 'Log Out' : undefined} className={`p-2 text-white/30 hover:text-white transition-colors shrink-0 ${!isSidebarCollapsed ? 'ml-auto' : ''}`}>
+              <button onClick={handleLogout} title={isSidebarCollapsed ? 'Log Out' : undefined} className={`p-2 text-white/30 hover:text-white transition-colors shrink-0 ${!isSidebarCollapsed ? 'ml-auto' : ''}`} aria-label="Log out">
                 <LogOut className="w-4 h-4" />
               </button>
             </div>
@@ -218,7 +224,7 @@ export default function DashboardLayout({ children, title, userData: passedUserD
         </aside>
 
         {/* Mobile Nav Bottom */}
-        <nav className="fixed bottom-0 left-0 w-full bg-white h-[calc(4rem+env(safe-area-inset-bottom))] border-t border-slate-200 flex lg:hidden items-center justify-around z-50 px-2 pt-1 pb-[env(safe-area-inset-bottom)]">
+        <nav id="mobile-navigation" className="fixed bottom-0 left-0 w-full bg-white h-[calc(4rem+env(safe-area-inset-bottom))] border-t border-slate-200 flex lg:hidden items-center justify-around z-50 px-2 pt-1 pb-[env(safe-area-inset-bottom)]">
           {navItems.slice(0, 5).map(item => (
             <button 
               key={item.label}
@@ -233,7 +239,7 @@ export default function DashboardLayout({ children, title, userData: passedUserD
         </nav>
 
         {/* Main Content */}
-        <main className={`min-h-screen flex flex-col relative pb-[calc(5.75rem+env(safe-area-inset-bottom))] lg:pb-0 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'lg:ml-24' : 'lg:ml-60'}`}>
+        <main id="main-content" tabIndex={-1} className={`min-h-screen flex flex-col relative pb-[calc(5.75rem+env(safe-area-inset-bottom))] lg:pb-0 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'lg:ml-24' : 'lg:ml-60'}`}>
           <div className="absolute inset-0 z-0 pointer-events-none opacity-[0.05]" style={{ backgroundImage: 'radial-gradient(#1E293B 1px, transparent 1px)', backgroundSize: '28px 28px' }} />
 
           {/* Top Bar */}
@@ -243,6 +249,8 @@ export default function DashboardLayout({ children, title, userData: passedUserD
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 className="lg:hidden touch-target p-2 -ml-2 text-[#1E293B] hover:bg-slate-50 rounded-lg transition-colors"
                 aria-label={isMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
+                aria-expanded={isMenuOpen}
+                aria-controls="mobile-navigation"
               >
                 {isMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
               </button>
@@ -250,6 +258,8 @@ export default function DashboardLayout({ children, title, userData: passedUserD
                 onClick={() => setIsSidebarCollapsed((prev) => !prev)}
                 className="hidden lg:flex p-2 -ml-1 text-[#1E293B] hover:bg-slate-50 rounded-lg transition-colors"
                 title={isSidebarCollapsed ? 'Expand menu' : 'Collapse menu'}
+                aria-label={isSidebarCollapsed ? 'Expand sidebar navigation' : 'Collapse sidebar navigation'}
+                aria-expanded={!isSidebarCollapsed}
               >
                 {isSidebarCollapsed ? <PanelLeftOpen className="w-5 h-5" /> : <PanelLeftClose className="w-5 h-5" />}
               </button>
